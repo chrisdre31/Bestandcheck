@@ -10,6 +10,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<script>window.KTN_UPLOAD_TOKEN = "491dbb552b424a77a62b";</script>
 <style>
 #pinGate{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-items:center;padding:16px}
 #pinGate .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px 24px;width:min(360px,100%);display:grid;gap:16px;text-align:center}
@@ -427,7 +428,7 @@ function renderCheck(){
   $("#vSub").textContent = `${veh.kz} · ${new Date().toLocaleDateString("de-DE")}`;
   const secs = APP.secs.map((s, si) => ({si, t:s.t, a:s.a, items: ITEMS.filter(i => i.sec === si)}));
   if(veh.extra.length) secs.push({si:"x", t:"Fahrzeugspezifisch", a:false, items: ITEMS.filter(i => i.sec === "x")});
-  let h = dueBanner();
+  let h = dueBanner() + outboxNote();
   secs.forEach(s => {
     const hasStd = s.items.some(i => i.type === "std");
     h += `<section class="sec" id="sec-${s.si}">
@@ -584,7 +585,7 @@ function showSummary(){
       <button class="secondary" type="button" id="btnBack">Zurück zur Liste</button>
       <button class="primary" type="button" id="btnSend" ${ready ? "" : "disabled"}>Bestandscheck absenden</button>
     </div>
-    <p class="foot">Beim Absenden öffnet sich das Teilen-Menü: <b>luckycloud</b> wählen und im Ordner <b>Bestandcheck/Eingang</b> sichern.</p>`;
+    ${UPLOAD_TOKEN ? "" : `<p class="foot">Beim Absenden öffnet sich das Teilen-Menü: <b>luckycloud</b> wählen und im Ordner <b>Bestandcheck :Eingang</b> sichern.</p>`}`;
   window.scrollTo(0,0);
 }
 $("#btnSum").addEventListener("click", showSummary);
@@ -630,40 +631,107 @@ function csv(){
   return {name:`Bestandcheck_${veh.id.replace(" ","")}_${stamp}.csv`, text:"﻿" + body};
 }
 
+/* ---------- Übertragung ---------- */
+const UPLOAD_TOKEN = window.KTN_UPLOAD_TOKEN || "";          // luckycloud Upload-Link (nur iPad-Version)
+const UPLOAD_HOST = "https://sync.luckycloud.de";
+const LS_OUTBOX = "ktn-bc-outbox";
+const outbox = {
+  get(){ try { return JSON.parse(ls.get(LS_OUTBOX) || "[]"); } catch(e){ return []; } },
+  set(a){ ls.set(LS_OUTBOX, JSON.stringify(a)); }
+};
+async function uploadDirect(name, text){
+  const r = await fetch(`${UPLOAD_HOST}/api/v2.1/upload-links/${UPLOAD_TOKEN}/upload/`, {cache:"no-store"});
+  if(!r.ok) throw new Error("Upload-Link " + r.status);
+  const j = await r.json();
+  if(!j.upload_link) throw new Error("kein Upload-Ziel");
+  const fd = new FormData();
+  fd.append("file", new File([text], name, {type:"text/csv"}));
+  fd.append("parent_dir", "/");
+  fd.append("replace", "0");
+  const u = await fetch(j.upload_link + (j.upload_link.includes("?") ? "&" : "?") + "ret-json=1", {method:"POST", body:fd});
+  if(!u.ok) throw new Error("Upload " + u.status);
+}
+let flushing = false;
+async function flushOutbox(){
+  if(!UPLOAD_TOKEN || !navigator.onLine || flushing) return;
+  if(!outbox.get().length) return;
+  flushing = true;
+  try {
+    for(const it of outbox.get()){
+      try { await uploadDirect(it.name, it.text); outbox.set(outbox.get().filter(x => x.name !== it.name)); } catch(e){ break; }
+    }
+  } finally { flushing = false; }
+  const b = document.getElementById("outboxNote"); if(b) b.outerHTML = outboxNote();
+}
+function outboxNote(){
+  const n = outbox.get().length;
+  return n ? `<div class="due warn" id="outboxNote" role="status"><span class="ic" aria-hidden="true">⇡</span><div><b>${n} Check${n === 1 ? "" : "s"} warte${n === 1 ? "t" : "n"} auf Übertragung</b><span>Wird automatisch gesendet, sobald das iPad wieder Internet hat. Dafür die App einmal öffnen.</span></div></div>` : `<span id="outboxNote" hidden></span>`;
+}
+window.addEventListener("online", flushOutbox);
+document.addEventListener("visibilitychange", () => { if(!document.hidden) flushOutbox(); });
+
+function sentOk(box, f, text){
+  ls.set(LS_LAST + veh.id, new Date().toISOString());
+  box.innerHTML = `<div class="msg ok">${text}</div>
+    <div class="row" style="margin-top:10px"><button class="secondary" type="button" id="btnNew">Neuen Check beginnen</button></div>`;
+}
+
+async function shareFile(f){
+  const file = new File([f.text], f.name, {type:"text/csv"});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    await navigator.share({files:[file], title:`Bestandcheck ${veh.id}`});
+    return "geteilt";
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+  return "heruntergeladen";
+}
+
+let lastFile = null;
 async function send(){
   const box = $("#sendMsg"); const btn = $("#btnSend");
-  const f = csv();
+  const f = csv(); lastFile = f;
   btn.disabled = true;
-  box.innerHTML = `<div class="msg info">Datei wird erstellt …</div>`;
-  let ok = false, how = "";
   try {
-    const dl = (window.claude && window.claude.use) ? await dlPromise : null;   // standalone: share sheet direkt aus dem Tipp heraus öffnen
-    if(dl){
-      const r = await dl.save({filename:f.name, data:f.text});
-      ok = true; how = r && r.status === "delivered" ? "übergeben" : "gespeichert";
-    } else {
-      const file = new File([f.text], f.name, {type:"text/csv"});
-      if(navigator.canShare && navigator.canShare({files:[file]})){
-        await navigator.share({files:[file], title:`Bestandcheck ${veh.id}`});
-        ok = true; how = "geteilt";
-      } else {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(file); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
-        ok = true; how = "heruntergeladen";
+    // Claude-Vorschau
+    if(window.claude && window.claude.use){
+      box.innerHTML = `<div class="msg info">Datei wird erstellt …</div>`;
+      const dl = await dlPromise;
+      if(dl){ const r = await dl.save({filename:f.name, data:f.text}); sentOk(box, f, `${esc(f.name)} wurde ${r && r.status === "delivered" ? "übergeben" : "gespeichert"}.`); btn.disabled = false; return; }
+    }
+    // iPad-Version mit Upload-Link
+    if(UPLOAD_TOKEN){
+      if(!navigator.onLine){
+        const o = outbox.get(); o.push({name:f.name, text:f.text}); outbox.set(o);
+        sentOk(box, f, `Kein Internet – der Check ist gespeichert und wird automatisch übertragen, sobald das iPad wieder online ist.`);
+        btn.disabled = false; return;
+      }
+      box.innerHTML = `<div class="msg info">Wird an luckycloud übertragen …</div>`;
+      try {
+        await uploadDirect(f.name, f.text);
+        sentOk(box, f, `✓ Bestandscheck übertragen. Vielen Dank!`);
+        btn.disabled = false; return;
+      } catch(err){
+        box.innerHTML = `<div class="msg bad">Die direkte Übertragung hat nicht geklappt (${esc(err.message || "Fehler")}). Bitte über das Teilen-Menü senden: luckycloud → Ordner „Bestandcheck :Eingang“.</div>
+          <div class="row" style="margin-top:10px"><button class="primary" type="button" id="btnShare">Über Teilen-Menü senden</button></div>`;
+        btn.disabled = false; return;
       }
     }
+    // ohne Upload-Link: Teilen-Menü
+    const how = await shareFile(f);
+    sentOk(box, f, `${esc(f.name)} wurde ${how}. Bitte sicherstellen, dass sie in luckycloud im Ordner „Eingang“ gelandet ist.`);
   } catch(err){
     const c = err && (err.code || err.name);
-    box.innerHTML = `<div class="msg bad">${c === "declined" || c === "AbortError" ? "Abgebrochen – die Datei wurde nicht gespeichert. Bitte erneut auf „Bestandscheck absenden“ tippen." : "Die Datei konnte nicht gespeichert werden (" + esc(c || "Fehler") + "). Bitte erneut versuchen."}</div>`;
-    btn.disabled = false; return;
+    box.innerHTML = `<div class="msg bad">${c === "declined" || c === "AbortError" ? "Abgebrochen – die Datei wurde nicht gesendet. Bitte erneut auf „Bestandscheck absenden“ tippen." : "Die Datei konnte nicht gesendet werden (" + esc(c || "Fehler") + "). Bitte erneut versuchen."}</div>`;
   }
-  if(ok){
-    ls.set(LS_LAST + veh.id, new Date().toISOString());
-    box.innerHTML = `<div class="msg ok">${esc(f.name)} wurde ${how}.${how === "geteilt" ? " Bitte sicherstellen, dass sie in luckycloud im Ordner „Eingang“ gelandet ist." : ""} Der Entwurf bleibt erhalten, bis du einen neuen Check beginnst.</div>
-      <div class="row" style="margin-top:10px"><button class="secondary" type="button" id="btnNew">Neuen Check beginnen</button></div>`;
-    btn.disabled = false;
-  }
+  btn.disabled = false;
 }
+$("#vSum").addEventListener("click", async e => {
+  if(e.target.id !== "btnShare" || !lastFile) return;
+  const box = $("#sendMsg");
+  try { const how = await shareFile(lastFile); sentOk(box, lastFile, `${esc(lastFile.name)} wurde ${how}. Bitte sicherstellen, dass sie in luckycloud im Ordner „Bestandcheck :Eingang“ gelandet ist.`); }
+  catch(err){ if((err && err.name) !== "AbortError") box.insertAdjacentHTML("beforeend", `<div class="msg bad" style="margin-top:8px">Teilen nicht möglich (${esc(err.name || "Fehler")}).</div>`); }
+});
 
 
 /* ---------- PIN + Offline ---------- */
@@ -675,7 +743,7 @@ function startApp(){
   if(v) openVehicle(v); else showStart();
 }
 (function gate(){
-  if(ls.get(LS_PIN) === PIN_HASH){ startApp(); return; }
+  if(ls.get(LS_PIN) === PIN_HASH){ startApp(); flushOutbox(); return; }
   const g = $("#pinGate"); g.hidden = false;
   let code = "";
   const dots = [...document.querySelectorAll("#pinDots i")];
@@ -686,7 +754,7 @@ function startApp(){
     if(b.textContent === "⌫") code = code.slice(0,-1); else if(code.length < 4) code += b.textContent;
     draw();
     if(code.length === 4){
-      if(await sha(code) === PIN_HASH){ ls.set(LS_PIN, PIN_HASH); g.hidden = true; startApp(); }
+      if(await sha(code) === PIN_HASH){ ls.set(LS_PIN, PIN_HASH); g.hidden = true; startApp(); flushOutbox(); }
       else { $("#pinErr").textContent = "Falsche PIN"; code = ""; setTimeout(draw, 250); }
     }
   });
