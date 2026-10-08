@@ -68,7 +68,7 @@ C=[
   ("Tragetuch","1",["Tragetuch"]),
   ("Rollboard","1",["Rollboard"]),
   ("Krankentragestuhl","",{"dev":[("sn","S-Nr.","text",["Krankentragestuhl"],"sn"),("date","TÜV bis","month",["Krankentragestuhl"],"mhd")]}),
-  ("Defibrillator","",{"dev":[("sn","S-Nr.","text",["Defibrillator"],"sn"),("date","TÜV/STK bis","month",["Defibrillator"],"mhd"),("date","Ablaufdatum Akku","month",["Defibrillator"],"akku"),("date","Ablaufdatum Pads","month",["Defibrillator"],"pads")]}),
+  ("Defibrillator","",{"dev":[("sn","S-Nr.","text",["Defibrillator"],"sn"),("date","TÜV/STK bis","month",["Defibrillator"],"mhd"),("date","Ablaufdatum Akku","month",["Defibrillator Akku"],"mhd"),("date","Ablaufdatum Pads","month",["Defibrillator Pads"],"mhd")]}),
   ("Einmalrasierer","2",["Einmalrasierer"]),
   ("Feuerlöscher","",{"dev":[("date","TÜV bis","month",["Feuerlöscher"],"mhd"),("sn","S-Nr.","text",["Feuerlöscher"],"sn")]}),
   ("Absaugpumpe ACCUVAC Rescue","",{"dev":[("check","Funktionstest","check",["Absaugpumpe"],None)]}),
