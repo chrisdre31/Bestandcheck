@@ -585,7 +585,7 @@ function showSummary(){
       <button class="secondary" type="button" id="btnBack">Zurück zur Liste</button>
       <button class="primary" type="button" id="btnSend" ${ready ? "" : "disabled"}>Bestandscheck absenden</button>
     </div>
-    ${UPLOAD_TOKEN ? "" : `<p class="foot">Beim Absenden öffnet sich das Teilen-Menü: <b>luckycloud</b> wählen und im Ordner <b>Bestandcheck :Eingang</b> sichern.</p>`}`;
+    ${UPLOAD_TOKEN ? "" : `<p class="foot">Beim Absenden öffnet sich das Teilen-Menü: <b>luckycloud</b> wählen und im Ordner <b>Bestandscheck Eingang</b> sichern.</p>`}`;
   window.scrollTo(0,0);
 }
 $("#btnSum").addEventListener("click", showSummary);
@@ -634,7 +634,7 @@ function csv(){
 /* ---------- Übertragung ---------- */
 const UPLOAD_TOKEN = window.KTN_UPLOAD_TOKEN || "";          // luckycloud Upload-Link (nur iPad-Version)
 const UPLOAD_HOST = "https://sync.luckycloud.de";
-const UPLOAD_DIR = window.KTN_UPLOAD_DIR || "/Bestandcheck :Eingang";   // Pfad des freigegebenen Ordners in der Bibliothek
+const UPLOAD_DIR = window.KTN_UPLOAD_DIR || "/Bestandscheck Eingang";   // Pfad des freigegebenen Ordners in der Bibliothek
 const LS_OUTBOX = "ktn-bc-outbox";
 const outbox = {
   get(){ try { return JSON.parse(ls.get(LS_OUTBOX) || "[]"); } catch(e){ return []; } },
@@ -646,7 +646,7 @@ async function uploadDirect(name, text){
   const j = await r.json();
   if(!j.upload_link) throw new Error("kein Upload-Ziel");
   // luckycloud nimmt über den Link nur Dateien für den freigegebenen Ordner an
-  const dirs = [j.parent_dir, j.path, UPLOAD_DIR, UPLOAD_DIR + "/", "/"].filter((d, i, a) => d && a.indexOf(d) === i);
+  const dirs = [j.parent_dir, j.path, UPLOAD_DIR, UPLOAD_DIR + "/", "/Bestandcheck :Eingang", "/"].filter((d, i, a) => d && a.indexOf(d) === i);
   let last = "";
   for(const dir of dirs){
     const fd = new FormData();
@@ -721,7 +721,7 @@ async function send(){
         sentOk(box, f, `✓ Bestandscheck übertragen. Vielen Dank!`);
         btn.disabled = false; return;
       } catch(err){
-        box.innerHTML = `<div class="msg bad">Die direkte Übertragung hat nicht geklappt (${esc(err.message || "Fehler")}). Bitte über das Teilen-Menü senden: luckycloud → Ordner „Bestandcheck :Eingang“.</div>
+        box.innerHTML = `<div class="msg bad">Die direkte Übertragung hat nicht geklappt (${esc(err.message || "Fehler")}). Bitte über das Teilen-Menü senden: luckycloud → Ordner „Bestandscheck Eingang“.</div>
           <div class="row" style="margin-top:10px"><button class="primary" type="button" id="btnShare">Über Teilen-Menü senden</button></div>`;
         btn.disabled = false; return;
       }
@@ -738,7 +738,7 @@ async function send(){
 $("#vSum").addEventListener("click", async e => {
   if(e.target.id !== "btnShare" || !lastFile) return;
   const box = $("#sendMsg");
-  try { const how = await shareFile(lastFile); sentOk(box, lastFile, `${esc(lastFile.name)} wurde ${how}. Bitte sicherstellen, dass sie in luckycloud im Ordner „Bestandcheck :Eingang“ gelandet ist.`); }
+  try { const how = await shareFile(lastFile); sentOk(box, lastFile, `${esc(lastFile.name)} wurde ${how}. Bitte sicherstellen, dass sie in luckycloud im Ordner „Bestandscheck Eingang“ gelandet ist.`); }
   catch(err){ if((err && err.name) !== "AbortError") box.insertAdjacentHTML("beforeend", `<div class="msg bad" style="margin-top:8px">Teilen nicht möglich (${esc(err.name || "Fehler")}).</div>`); }
 });
 
