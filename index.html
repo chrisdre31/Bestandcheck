@@ -431,8 +431,7 @@ function renderCheck(){
   secs.forEach(s => {
     const hasStd = s.items.some(i => i.type === "std");
     h += `<section class="sec" id="sec-${s.si}">
-      <div class="sec-h"><h2>${esc(s.t)}</h2><span class="cnt num" id="cnt-${s.si}">${secCount(s.si)}</span>
-      <button type="button" class="allok" data-sec="${s.si}">Alle übrigen ✓</button></div>
+      <div class="sec-h"><h2>${esc(s.t)}</h2><span class="cnt num" id="cnt-${s.si}">${secCount(s.si)}</span></div>
       ${hasStd ? `<div class="colhead"><span>Material</span><span style="text-align:center">Anzahl</span><span>${s.a || s.items.some(i=>i.a) ? "Ablaufdatum" : ""}</span><span style="text-align:right">✓ / ✗</span></div>` : ""}
       ${s.items.map(i => i.type === "std" ? stdRow(i) : devRow(i)).join("")}
     </section>`;
@@ -443,6 +442,7 @@ function renderCheck(){
       <div class="fld"><label for="inKm">Kilometerstand</label><input id="inKm" type="number" inputmode="numeric" class="req" placeholder="z. B. 184250" value="${esc(S.km)}"></div>
       <div class="fld"><label for="inKz">Kürzel</label><input id="inKz" type="text" class="req" autocapitalize="characters" placeholder="Dein Kürzel" value="${esc(S.kz)}"></div>
       <div class="fld wide"><label for="inM">Sonstige Mängel</label><textarea id="inM" placeholder="Alles, was sonst auffällt – Fahrzeug, Geräte, Sauberkeit …">${esc(S.maengel)}</textarea></div>
+      <div class="wide" style="display:flex;justify-content:flex-end"><button class="primary" type="button" id="btnSum2">Prüfen &amp; absenden</button></div>
     </div>
   </section>
   <p class="foot">Checkliste Stand ${STAND}. Ablaufdaten aus dem Bestandsverzeichnis sind vorausgefüllt – nur ändern, wenn das Datum am Produkt abweicht. ✓ heißt: vorhanden und haltbar.</p>`;
@@ -493,12 +493,7 @@ $("#vCheck").addEventListener("click", e => {
     a.f[fb.dataset.f] = a.f[fb.dataset.f] === fb.dataset.fv ? "" : fb.dataset.fv;
     refreshRow(fb.dataset.k); save(); updateProgress(); return;
   }
-  const all = e.target.closest(".allok");
-  if(all){
-    const sec = all.dataset.sec === "x" ? "x" : +all.dataset.sec;
-    ITEMS.filter(i => i.sec === sec && !S.ans[i.key].st).forEach(i => { S.ans[i.key].st = "ok"; refreshRow(i.key); });
-    save(); updateProgress();
-  }
+
 });
 $("#vCheck").addEventListener("input", e => {
   const t = e.target;
@@ -593,6 +588,7 @@ function showSummary(){
   window.scrollTo(0,0);
 }
 $("#btnSum").addEventListener("click", showSummary);
+$("#vCheck").addEventListener("click", e => { if(e.target.id === "btnSum2") showSummary(); });
 $("#vSum").addEventListener("click", async e => {
   if(e.target.id === "btnBack"){ renderCheck(); return; }
   const j = e.target.closest("[data-jump]");
