@@ -127,7 +127,7 @@ input,textarea{font:inherit;color:var(--ink)}
 .fin .wide{grid-column:1/-1}
 .fin textarea{width:100%;min-height:96px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px 10px;resize:vertical}
 
-.go{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.go{position:fixed;left:0;right:0;bottom:0;z-index:10;transition:transform .25s ease;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
 .go-in{max-width:928px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .go-in .hint{flex:1;min-width:0;color:var(--muted);font-size:15px}
 .primary{background:var(--accent);color:var(--surface);border:0;border-radius:10px;padding:14px 22px;font-size:18px;font-weight:600;font-family:var(--display);letter-spacing:.02em;min-height:52px}
@@ -169,7 +169,8 @@ input,textarea{font:inherit;color:var(--ink)}
   .it .dt{grid-column:1/-1}
   .it .tog{grid-column:2;grid-row:1}
 }
-@media (prefers-reduced-motion:reduce){.prog-fill{transition:none}}
+.go.away{transform:translateY(110%)}
+@media (prefers-reduced-motion:reduce){.prog-fill,.go{transition:none}}
 </style>
 
 </head><body>
@@ -510,6 +511,21 @@ $("#vCheck").addEventListener("input", e => {
   }
   save(); updateProgress();
 });
+
+/* untere Leiste: beim Runterscrollen ausblenden, beim Hochscrollen und am Listenende zeigen */
+(function(){
+  let lastY = window.scrollY, ticking = false;
+  window.addEventListener("scroll", () => {
+    if(ticking) return; ticking = true;
+    requestAnimationFrame(() => {
+      const y = window.scrollY, bar = $("#goBar");
+      const atEnd = window.innerHeight + y >= document.documentElement.scrollHeight - 120;
+      if(atEnd || y < 80 || y < lastY - 4) bar.classList.remove("away");
+      else if(y > lastY + 4) bar.classList.add("away");
+      lastY = y; ticking = false;
+    });
+  }, {passive:true});
+})();
 
 $("#btnVeh").addEventListener("click", () => { showStart(); });
 
