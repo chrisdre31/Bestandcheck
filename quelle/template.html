@@ -1,0 +1,720 @@
+<title>KTW Bestandscheck</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bestandscheck">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one working column (iPad portrait/landscape), sticky status bar on top, section bands like the paper checklist */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#16212c; --muted:#5a6774; --line:#d5dce3;
+  --band:#2f5275; --band-ink:#ffffff; --accent:#2f5275; --accent-soft:#e3ebf3;
+  --ok:#1d7447; --ok-soft:#e2f2e9; --bad:#b3261e; --bad-soft:#fbe5e3;
+  --warn:#9a5b00; --warn-soft:#fdf0d8; --chg:#245fa6; --chg-soft:#e3edf9;
+  --display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10161c; --surface:#18212a; --ink:#e6ebf0; --muted:#97a4b1; --line:#2c3a47;
+  --band:#2b4b6b; --band-ink:#f2f6fa; --accent:#8db6df; --accent-soft:#1f3347;
+  --ok:#5cc58c; --ok-soft:#173326; --bad:#f2837a; --bad-soft:#3a1c1a;
+  --warn:#e7b04e; --warn-soft:#3a2c12; --chg:#86b4ea; --chg-soft:#1b2d44; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161c; --surface:#18212a; --ink:#e6ebf0; --muted:#97a4b1; --line:#2c3a47;
+  --band:#2b4b6b; --band-ink:#f2f6fa; --accent:#8db6df; --accent-soft:#1f3347;
+  --ok:#5cc58c; --ok-soft:#173326; --bad:#f2837a; --bad-soft:#3a1c1a;
+  --warn:#e7b04e; --warn-soft:#3a2c12; --chg:#86b4ea; --chg-soft:#1b2d44; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+input[type=month]{text-align:left}
+input[type=month]::-webkit-date-and-time-value{text-align:left;margin:0}
+input[type=month]::-webkit-datetime-edit{padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.4;-webkit-text-size-adjust:100%}
+.wrap{max-width:960px;margin:0 auto;padding-inline:16px;padding-block:0 120px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+input,textarea{font:inherit;color:var(--ink)}
+:focus-visible{outline:3px solid var(--chg);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--surface);border-bottom:1px solid var(--line);margin-inline:-16px;padding:10px 16px}
+.bar-in{max-width:928px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.veh{display:flex;flex-direction:column;min-width:0}
+.veh b{font-family:var(--display);font-size:24px;font-weight:700;letter-spacing:.01em}
+.veh span{font-size:14px;color:var(--muted)}
+.prog{flex:1;min-width:180px;display:flex;flex-direction:column;gap:5px}
+.prog-txt{font-size:14px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.prog-track{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.prog-fill{height:100%;background:var(--ok);width:0;transition:width .25s}
+.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:15px;color:var(--muted)}
+
+/* start */
+.start{padding-block:28px;display:grid;gap:18px}
+.start p{margin:0;color:var(--muted);max-width:60ch}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.vbtn{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 14px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:76px}
+.vbtn b{font-family:var(--display);font-size:22px}
+.vbtn span{color:var(--muted);font-size:14px}
+.vbtn:active{background:var(--accent-soft)}
+
+/* sections */
+.sec{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.sec-h{background:var(--band);color:var(--band-ink);display:flex;align-items:center;gap:12px;padding:10px 14px;flex-wrap:wrap}
+.sec-h h2{font-size:21px;font-weight:600;flex:1;min-width:0}
+.sec-h .cnt{font-size:14px;opacity:.85}
+.allok{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);color:var(--band-ink);border-radius:8px;padding:7px 12px;font-size:15px}
+.colhead{display:grid;grid-template-columns:minmax(0,1fr) 64px 170px 122px;gap:10px;padding:6px 14px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+
+.it{display:grid;grid-template-columns:minmax(0,1fr) 64px 170px 122px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line)}
+.it:last-child{border-bottom:0}
+.it.ok{background:linear-gradient(90deg,var(--ok-soft),transparent 60%)}
+.it.x{background:linear-gradient(90deg,var(--bad-soft),transparent 60%)}
+.it.open-hl{box-shadow:inset 4px 0 0 var(--warn)}
+.lab{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;min-height:48px}
+.lab .t{font-weight:500}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;font-weight:600;padding:2px 7px;border-radius:999px;letter-spacing:.02em}
+.chip.exp{background:var(--bad-soft);color:var(--bad)}
+.chip.soon{background:var(--warn-soft);color:var(--warn)}
+.chip.chg{background:var(--chg-soft);color:var(--chg)}
+.soll{font-size:15px;color:var(--muted);text-align:center}
+.dt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dt input{display:block;width:100%;min-width:0;max-width:100%;height:48px;min-height:48px;-webkit-appearance:none;appearance:none;line-height:46px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 10px;font-size:16px}
+.dt .was{font-size:12px;color:var(--muted)}
+.tog{display:flex;gap:8px;justify-content:flex-end}
+.tb{width:54px;height:48px;border-radius:9px;border:1.5px solid var(--line);background:var(--surface);font-size:24px;line-height:1;display:grid;place-items:center}
+.tb.ok[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:#fff}
+.tb.x[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.note{grid-column:1/-1}
+.note input{width:100%;min-height:42px;border:1px solid var(--bad);border-radius:8px;background:var(--surface);padding:6px 10px}
+
+/* devices */
+.dev{display:grid;grid-template-columns:minmax(0,1fr) 122px;gap:10px 10px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:center}
+.dev:last-child{border-bottom:0}
+.dev.ok{background:linear-gradient(90deg,var(--ok-soft),transparent 60%)}
+.dev.x{background:linear-gradient(90deg,var(--bad-soft),transparent 60%)}
+.dev.open-hl{box-shadow:inset 4px 0 0 var(--warn)}
+.flds{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:start}
+.fld{display:flex;flex-direction:column;gap:3px;min-width:0}
+.fld label{font-size:13px;color:var(--muted)}
+.fld input{display:block;width:100%;min-width:0;max-width:100%;height:48px;-webkit-appearance:none;appearance:none;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 10px;font-size:16px;line-height:46px}
+.fld input.req:placeholder-shown{border-color:var(--warn)}
+.ft{display:flex;gap:8px}
+.ft button{flex:1;min-width:0;height:48px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);font-size:15px}
+.ft button[aria-pressed="true"].y{background:var(--ok);color:#fff;border-color:var(--ok)}
+.ft button[aria-pressed="true"].n{background:var(--bad);color:#fff;border-color:var(--bad)}
+
+/* final */
+.fin{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:14px}
+.fin .wide{grid-column:1/-1}
+.fin textarea{width:100%;min-height:96px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px 10px;resize:vertical}
+
+.go{position:fixed;left:0;right:0;bottom:0;z-index:10;transition:transform .25s ease;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.go-in{max-width:928px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.go-in .hint{flex:1;min-width:0;color:var(--muted);font-size:15px}
+.primary{background:var(--accent);color:var(--surface);border:0;border-radius:10px;padding:14px 22px;font-size:18px;font-weight:600;font-family:var(--display);letter-spacing:.02em;min-height:52px}
+.primary:disabled{opacity:.45}
+.secondary{background:var(--surface);border:1.5px solid var(--accent);color:var(--accent);border-radius:10px;padding:12px 18px;font-size:17px;font-weight:600;min-height:52px}
+
+/* summary */
+.sum{padding-block:24px;display:grid;gap:16px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.box h3{font-size:19px;margin-bottom:8px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.kpi{border:1px solid var(--line);border-radius:var(--r);padding:12px;background:var(--surface)}
+.kpi b{display:block;font-family:var(--display);font-size:32px;line-height:1}
+.kpi span{font-size:14px;color:var(--muted)}
+.kpi.bad b{color:var(--bad)} .kpi.chg b{color:var(--chg)} .kpi.warn b{color:var(--warn)} .kpi.ok b{color:var(--ok)}
+.list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.list li{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.list li:last-child{border-bottom:0}
+.list .r{color:var(--muted)}
+.linkb{background:none;border:0;color:var(--chg);text-decoration:underline;padding:0;font-size:inherit}
+.msg{border-radius:var(--r);padding:14px 16px;font-weight:500}
+.msg.ok{background:var(--ok-soft);color:var(--ok)}
+.msg.bad{background:var(--bad-soft);color:var(--bad)}
+.msg.info{background:var(--chg-soft);color:var(--chg)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.due{margin-top:18px;border-radius:var(--r);padding:14px 16px;display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);background:var(--surface)}
+.due b{font-family:var(--display);font-size:20px;display:block}
+.due span{font-size:15px}
+.due.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.due.urgent{background:var(--bad);border-color:var(--bad);color:#fff}
+.due.info{color:var(--muted)}
+.due .ic{font-size:26px;line-height:1}
+.foot{margin-top:28px;color:var(--muted);font-size:13px}
+
+@media (max-width:640px){
+  .colhead{display:none}
+  .it{grid-template-columns:minmax(0,1fr) 122px}
+  .it .soll{grid-column:1;grid-row:2;text-align:left;line-height:1.4}
+  .it .dt{grid-column:1/-1}
+  .it .tog{grid-column:2;grid-row:1}
+}
+.go.away{transform:translateY(110%)}
+@media (prefers-reduced-motion:reduce){.prog-fill,.go{transition:none}}
+</style>
+
+<div class="wrap">
+  <div class="bar" id="bar" hidden>
+    <div class="bar-in">
+      <div class="veh"><b id="vName">KTW</b><span id="vSub">–</span></div>
+      <div class="prog">
+        <div class="prog-txt"><span id="pTxt" class="num">0 von 0 geprüft</span><span id="pPct" class="num">0 %</span></div>
+        <div class="prog-track"><div class="prog-fill" id="pFill"></div></div>
+      </div>
+      <button class="ghost" id="btnVeh" type="button">Fahrzeug ändern</button>
+    </div>
+  </div>
+
+  <section id="vStart" class="start" hidden>
+    <h1 style="font-size:34px">KTW Bestandscheck</h1>
+    <p>Dieses iPad ist einem Fahrzeug fest zugeordnet. Wähle das Fahrzeug einmalig aus – die App merkt es sich für die nächsten Checks.</p>
+    <div class="vgrid" id="vGrid"></div>
+  </section>
+
+  <main id="vCheck" hidden></main>
+
+  <section id="vSum" class="sum" hidden></section>
+</div>
+
+<div class="go" id="goBar" hidden>
+  <div class="go-in">
+    <div class="hint" id="goHint">Alle Positionen mit ✓ oder ✗ abhaken.</div>
+    <button class="primary" id="btnSum" type="button">Prüfen &amp; absenden</button>
+  </div>
+</div>
+
+<script>
+const APP = __DATA__;
+const STAND = "März 2026";
+const DATA_VER = "2026-10-08c";
+const SOON_DAYS = 30;
+const CHECK_INTERVAL = 14; // Tage zwischen zwei Checks
+const O2_MIN_BAR = 50;   // Meldung, wenn Füllstand darunter liegt
+const lowO2 = v => v !== "" && v != null && !isNaN(parseFloat(v)) && parseFloat(String(v).replace(",", ".")) < O2_MIN_BAR;
+const LS_VEH = "ktn-bc-vehicle", LS_DRAFT = "ktn-bc-draft-", LS_KZ = "ktn-bc-kuerzel", LS_LAST = "ktn-bc-last-";
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ls = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} }
+};
+
+// capability (only inside the Claude viewer; standalone it stays null)
+let dlPromise = (window.claude && window.claude.use) ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
+
+let veh = null;      // vehicle object
+let S = null;        // draft state
+
+/* ---------- dates ---------- */
+const toMonth = v => (v && /^\d{4}-\d{2}/.test(v)) ? v.slice(0,7) : "";
+function fmtList(v){
+  if(!v || !/^\d{4}-\d{2}-\d{2}/.test(v)) return v && v !== "-" ? v : "–";
+  const [y,m,d] = v.split("-");
+  return d === "01" ? `${m}/${y}` : `${d}.${m}.${y}`;
+}
+const fmtMonth = m => m ? `${m.slice(5,7)}/${m.slice(0,4)}` : "–";
+function dateState(month){
+  // gleiche Logik wie im Bestandsverzeichnis: Monatsangabe = 1. des Monats
+  if(!month) return "";
+  const [y,m] = month.split("-").map(Number);
+  const d = new Date(y, m-1, 1);
+  const t = new Date(); const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  if(d < today) return "exp";
+  if((d - today)/86400000 <= SOON_DAYS) return "soon";
+  return "";
+}
+
+/* ---------- model ---------- */
+function buildItems(){
+  // returns flat list of {key, sec, type:'std'|'dev', ...}
+  const out = [];
+  const hide = new Set(veh.hide || []);
+  APP.secs.forEach((s, si) => {
+    s.items.forEach((it, ii) => {
+      const key = `${si}.${ii}`;
+      if(hide.has(key)) return;
+      if(it.dev){
+        out.push({key, sec:si, type:"dev", t:it.t, s:it.s, fields: it.dev.map((f, fi) => {
+          const x = veh.vals[`${si}.${ii}.${fi}`];
+          return {fi, k:f.k, l:f.l, ty:f.ty, col:f.col, row:x ? x.r : null, xn:x ? x.n : "", list: x ? x.v : ""};
+        })});
+      } else {
+        const x = veh.vals[key];
+        out.push({key, sec:si, type:"std", t:it.t, s:it.s, a:!!(it.a && x && toMonth(x.v)), row:x ? x.r : null, xn:x ? x.n : "", list: x ? x.v : ""});
+      }
+    });
+  });
+  // Materialien, die nur in der Excel stehen (neu angelegt oder umbenannt)
+  (veh.extra || []).forEach(e => {
+    out.push({key:`x.${norm(e.n)}`, sec:e.sec, type:"std", t:e.t, s:"", a:!!toMonth(e.mhd), row:e.r, xn:e.n, list:e.mhd});
+  });
+  return out;
+}
+const norm = s => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+let ITEMS = [];
+
+function newDraft(){
+  const d = {ver: DATA_VER, ktw: veh.id, started: new Date().toISOString(), ans:{}, km:"", kz: ls.get(LS_KZ) || "", maengel:""};
+  ITEMS.forEach(it => {
+    if(it.type === "std"){
+      d.ans[it.key] = {st:"", note:"", date: it.a ? toMonth(it.list) : ""};
+    } else {
+      const f = {};
+      it.fields.forEach(x => {
+        if(x.ty === "month") f[x.fi] = toMonth(x.list);
+        else if(x.ty === "text") f[x.fi] = (x.list && x.list !== "-") ? x.list : "";
+        else f[x.fi] = "";
+      });
+      d.ans[it.key] = {st:"", note:"", f};
+    }
+  });
+  return d;
+}
+function save(){ if(S) ls.set(LS_DRAFT + veh.id, JSON.stringify(S)); }
+
+function isDone(it){
+  const a = S.ans[it.key];
+  if(!a || !a.st) return false;
+  if(it.type === "dev" && a.st === "ok"){
+    for(const f of it.fields){
+      if((f.ty === "number" || f.ty === "check") && !a.f[f.fi]) return false;
+    }
+  }
+  return true;
+}
+
+/* ---------- Fälligkeit ---------- */
+function dueInfo(){
+  const raw = ls.get(LS_LAST + veh.id);
+  const last = raw ? new Date(raw) : null;
+  if(!last || isNaN(last)) return {cls:"warn", ic:"!", h:"Bestandscheck fällig", t:"Auf diesem iPad wurde noch kein digitaler Check abgeschickt. Bitte jetzt durchführen."};
+  const day = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((day(new Date()) - day(last)) / 86400000);
+  const next = new Date(day(last)); next.setDate(next.getDate() + CHECK_INTERVAL);
+  const ld = last.toLocaleDateString("de-DE"), nd = next.toLocaleDateString("de-DE");
+  if(days > CHECK_INTERVAL) return {cls:"urgent", ic:"!!", h:`DRINGEND: Bestandscheck seit ${days - CHECK_INTERVAL} Tag${days - CHECK_INTERVAL === 1 ? "" : "en"} überfällig`, t:`Letzter Check am ${ld} (vor ${days} Tagen). Bitte sofort durchführen.`};
+  if(days === CHECK_INTERVAL) return {cls:"warn", ic:"!", h:"Bestandscheck heute fällig", t:`Letzter Check am ${ld}. Bitte heute durchführen.`};
+  return {cls:"info", ic:"✓", h:`Nächster Check fällig am ${nd}`, t:`Letzter Check am ${ld} (vor ${days} Tag${days === 1 ? "" : "en"}).`};
+}
+function dueBanner(){
+  const d = dueInfo();
+  return `<div class="due ${d.cls}" role="${d.cls === "info" ? "status" : "alert"}"><span class="ic" aria-hidden="true">${d.ic}</span><div><b>${esc(d.h)}</b><span>${esc(d.t)}</span></div></div>`;
+}
+
+/* ---------- start ---------- */
+function showStart(){
+  $("#bar").hidden = true; $("#vCheck").hidden = true; $("#vSum").hidden = true; $("#goBar").hidden = true;
+  $("#vStart").hidden = false;
+  $("#vGrid").innerHTML = APP.veh.map((v,i) => `<button class="vbtn" type="button" data-i="${i}"><b>${esc(v.id)}</b><span class="num">${esc(v.kz)}</span></button>`).join("");
+}
+$("#vGrid").addEventListener("click", e => {
+  const b = e.target.closest(".vbtn"); if(!b) return;
+  const v = APP.veh[+b.dataset.i];
+  ls.set(LS_VEH, v.id);
+  openVehicle(v);
+});
+
+function openVehicle(v){
+  veh = v; ITEMS = buildItems();
+  let d = null;
+  try { d = JSON.parse(ls.get(LS_DRAFT + v.id) || "null"); } catch(e){}
+  S = (d && d.ktw === v.id && d.ans && d.ver === DATA_VER) ? d : newDraft();
+  // make sure new items exist in older drafts
+  const fresh = newDraft();
+  for(const k in fresh.ans) if(!S.ans[k]) S.ans[k] = fresh.ans[k];
+  renderCheck();
+}
+
+/* ---------- check view ---------- */
+function chipsFor(month, listVal){
+  const st = dateState(month);
+  let h = "";
+  if(st === "exp") h += `<span class="chip exp">abgelaufen</span>`;
+  if(st === "soon") h += `<span class="chip soon">läuft bald ab</span>`;
+  if(month && toMonth(listVal) !== month) h += `<span class="chip chg">neues Datum</span>`;
+  if(!month && toMonth(listVal)) h += `<span class="chip chg">Datum gelöscht</span>`;
+  return h;
+}
+
+function stdRow(it){
+  const a = S.ans[it.key];
+  const dateCell = it.a
+    ? `<div class="dt"><input type="month" id="d-${it.key}" data-k="${it.key}" data-role="date" value="${esc(a.date)}" aria-label="Ablaufdatum ${esc(it.t)}"></div>`
+    : `<div></div>`;
+  return `<div class="it ${a.st}" id="row-${it.key}" data-k="${it.key}">
+    <div class="lab"><span class="t">${esc(it.t)}</span><span class="chips" id="c-${it.key}">${it.a ? chipsFor(a.date, it.list) : ""}</span></div>
+    <div class="soll num">${esc(it.s)}</div>
+    ${dateCell}
+    <div class="tog">
+      <button type="button" class="tb ok" data-k="${it.key}" data-v="ok" aria-pressed="${a.st==="ok"}" aria-label="vorhanden und haltbar">✓</button>
+      <button type="button" class="tb x" data-k="${it.key}" data-v="x" aria-pressed="${a.st==="x"}" aria-label="nicht vorhanden">✗</button>
+    </div>
+    <div class="note" ${a.st==="x" ? "" : "hidden"}><input type="text" id="n-${it.key}" data-k="${it.key}" data-role="note" value="${esc(a.note)}" placeholder="Was fehlt genau? (z. B. nur 1 von 2 vorhanden)"></div>
+  </div>`;
+}
+
+function devRow(it){
+  const a = S.ans[it.key];
+  const fl = it.fields.map(f => {
+    const id = `f-${it.key}-${f.fi}`;
+    const v = a.f[f.fi];
+    const was = "";
+    if(f.ty === "check"){
+      return `<div class="fld"><label>${esc(f.l)}</label><div class="ft">
+        <button type="button" class="y" data-k="${it.key}" data-f="${f.fi}" data-fv="ok" aria-pressed="${v==="ok"}">✓ in Ordnung</button>
+        <button type="button" class="n" data-k="${it.key}" data-f="${f.fi}" data-fv="nicht ok" aria-pressed="${v==="nicht ok"}">✗ nicht ok</button></div></div>`;
+    }
+    const type = f.ty === "number" ? `type="number" inputmode="decimal" min="0" max="300" class="req"` : f.ty === "month" ? `type="month"` : `type="text" autocapitalize="characters"`;
+    const chips = f.ty === "month" ? `<span class="chips" id="c-${it.key}-${f.fi}">${chipsFor(v, f.list)}</span>` : f.ty === "number" ? `<span class="chips" id="c-${it.key}-${f.fi}">${lowO2(v) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Flasche tauschen</span>` : ""}</span>` : "";
+    return `<div class="fld"><label for="${id}">${esc(f.l)}</label><input ${type} id="${id}" data-k="${it.key}" data-f="${f.fi}" value="${esc(v)}" placeholder="${f.ty==="number" ? "bar eintragen" : ""}">${was}${chips}</div>`;
+  }).join("");
+  return `<div class="dev ${a.st}" id="row-${it.key}" data-k="${it.key}">
+    <div class="lab"><span class="t">${esc(it.t)}</span>${it.s ? `<span class="soll num" style="text-align:left">Anzahl ${esc(it.s)}</span>` : ""}</div>
+    <div class="tog">
+      <button type="button" class="tb ok" data-k="${it.key}" data-v="ok" aria-pressed="${a.st==="ok"}" aria-label="vorhanden">✓</button>
+      <button type="button" class="tb x" data-k="${it.key}" data-v="x" aria-pressed="${a.st==="x"}" aria-label="nicht vorhanden">✗</button>
+    </div>
+    <div class="flds">${fl}</div>
+    <div class="note" ${a.st==="x" ? "" : "hidden"}><input type="text" id="n-${it.key}" data-k="${it.key}" data-role="note" value="${esc(a.note)}" placeholder="Was ist los? (fehlt, defekt …)"></div>
+  </div>`;
+}
+
+function secCount(si){
+  const its = ITEMS.filter(i => i.sec === si);
+  return `${its.filter(isDone).length}/${its.length}`;
+}
+
+function renderCheck(){
+  $("#vStart").hidden = true; $("#vSum").hidden = true;
+  $("#bar").hidden = false; $("#vCheck").hidden = false; $("#goBar").hidden = false;
+  $("#vName").textContent = veh.id;
+  $("#vSub").textContent = `${veh.kz} · ${new Date().toLocaleDateString("de-DE")}`;
+  const secs = APP.secs.map((s, si) => ({si, t:s.t, a:s.a, items: ITEMS.filter(i => i.sec === si)}));
+  if(ITEMS.some(i => i.sec === "x")) secs.push({si:"x", t:"Weitere Materialien", a:false, items: ITEMS.filter(i => i.sec === "x")});
+  let h = dueBanner() + outboxNote();
+  secs.filter(s => s.items.length).forEach(s => {
+    const hasStd = s.items.some(i => i.type === "std");
+    h += `<section class="sec" id="sec-${s.si}">
+      <div class="sec-h"><h2>${esc(s.t)}</h2><span class="cnt num" id="cnt-${s.si}">${secCount(s.si)}</span></div>
+      ${hasStd ? `<div class="colhead"><span>Material</span><span style="text-align:center">Anzahl</span><span>${s.a || s.items.some(i=>i.a) ? "Ablaufdatum" : ""}</span><span style="text-align:right">✓ / ✗</span></div>` : ""}
+      ${s.items.map(i => i.type === "std" ? stdRow(i) : devRow(i)).join("")}
+    </section>`;
+  });
+  h += `<section class="sec" id="sec-fin">
+    <div class="sec-h"><h2>Abschluss</h2></div>
+    <div class="fin">
+      <div class="fld"><label for="inKm">Kilometerstand</label><input id="inKm" type="number" inputmode="numeric" class="req" placeholder="z. B. 184250" value="${esc(S.km)}"></div>
+      <div class="fld"><label for="inKz">Kürzel</label><input id="inKz" type="text" class="req" autocapitalize="characters" placeholder="Dein Kürzel" value="${esc(S.kz)}"></div>
+      <div class="fld wide"><label for="inM">Sonstige Mängel</label><textarea id="inM" placeholder="Alles, was sonst auffällt – Fahrzeug, Geräte, Sauberkeit …">${esc(S.maengel)}</textarea></div>
+      <div class="wide" style="display:flex;justify-content:flex-end"><button class="primary" type="button" id="btnSum2">Prüfen &amp; absenden</button></div>
+    </div>
+  </section>
+  <p class="foot">Checkliste Stand ${STAND}. Ablaufdaten aus dem Bestandsverzeichnis sind vorausgefüllt – nur ändern, wenn das Datum am Produkt abweicht. ✓ heißt: vorhanden und haltbar.</p>`;
+  $("#vCheck").innerHTML = h;
+  updateProgress();
+}
+
+function updateProgress(){
+  const done = ITEMS.filter(isDone).length, tot = ITEMS.length;
+  const fin = S.km && S.kz;
+  $("#pTxt").textContent = `${done} von ${tot} geprüft`;
+  $("#pPct").textContent = `${Math.round(done/tot*100)} %`;
+  $("#pFill").style.width = `${done/tot*100}%`;
+  const open = tot - done;
+  $("#goHint").textContent = open ? `Noch ${open} Position${open===1?"":"en"} offen.` : (fin ? "Alles geprüft – bereit zum Absenden." : "Kilometerstand und Kürzel fehlen noch.");
+}
+
+function refreshRow(key){
+  const it = ITEMS.find(i => i.key === key);
+  const el = document.getElementById("row-" + key);
+  if(!it || !el) return;
+  const a = S.ans[key];
+  el.classList.remove("ok","x","open-hl");
+  if(a.st) el.classList.add(a.st);
+  el.querySelectorAll(".tb").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === a.st)));
+  const n = el.querySelector(".note"); if(n) n.hidden = a.st !== "x";
+  if(it.type === "std" && it.a) document.getElementById("c-" + key).innerHTML = chipsFor(a.date, it.list);
+  if(it.type === "dev") it.fields.forEach(f => {
+    if(f.ty === "month"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = chipsFor(a.f[f.fi], f.list); }
+    if(f.ty === "number"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = lowO2(a.f[f.fi]) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Flasche tauschen</span>` : ""; }
+    if(f.ty === "check") el.querySelectorAll(`[data-f="${f.fi}"]`).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.fv === a.f[f.fi])));
+  });
+  const c = document.getElementById("cnt-" + it.sec); if(c) c.textContent = secCount(it.sec);
+}
+
+$("#vCheck").addEventListener("click", e => {
+  const tb = e.target.closest(".tb");
+  if(tb){
+    const a = S.ans[tb.dataset.k];
+    a.st = a.st === tb.dataset.v ? "" : tb.dataset.v;
+    refreshRow(tb.dataset.k); save(); updateProgress();
+    if(a.st === "x"){ const n = document.getElementById("n-" + tb.dataset.k); if(n) n.focus(); }
+    return;
+  }
+  const fb = e.target.closest("[data-fv]");
+  if(fb){
+    const a = S.ans[fb.dataset.k];
+    a.f[fb.dataset.f] = a.f[fb.dataset.f] === fb.dataset.fv ? "" : fb.dataset.fv;
+    refreshRow(fb.dataset.k); save(); updateProgress(); return;
+  }
+
+});
+$("#vCheck").addEventListener("input", e => {
+  const t = e.target;
+  if(t.id === "inKm"){ S.km = t.value; }
+  else if(t.id === "inKz"){ S.kz = t.value.toUpperCase(); ls.set(LS_KZ, S.kz); }
+  else if(t.id === "inM"){ S.maengel = t.value; }
+  else if(t.dataset.k){
+    const a = S.ans[t.dataset.k];
+    if(t.dataset.role === "date") a.date = t.value;
+    else if(t.dataset.role === "note") a.note = t.value;
+    else if(t.dataset.f !== undefined) a.f[t.dataset.f] = t.value;
+    refreshRow(t.dataset.k);
+  }
+  save(); updateProgress();
+});
+
+/* untere Leiste: beim Runterscrollen ausblenden, beim Hochscrollen und am Listenende zeigen */
+(function(){
+  let lastY = window.scrollY, ticking = false;
+  window.addEventListener("scroll", () => {
+    if(ticking) return; ticking = true;
+    requestAnimationFrame(() => {
+      const y = window.scrollY, bar = $("#goBar");
+      const atEnd = window.innerHeight + y >= document.documentElement.scrollHeight - 120;
+      if(atEnd || y < 80 || y < lastY - 4) bar.classList.remove("away");
+      else if(y > lastY + 4) bar.classList.add("away");
+      lastY = y; ticking = false;
+    });
+  }, {passive:true});
+})();
+
+$("#btnVeh").addEventListener("click", () => { showStart(); });
+
+/* ---------- summary ---------- */
+function collect(){
+  const missing = [], changed = [], expired = [], soon = [], devIssues = [];
+  ITEMS.forEach(it => {
+    const a = S.ans[it.key];
+    if(a.st === "x") missing.push({it, note:a.note});
+    if(it.type === "std" && it.a){
+      if(toMonth(it.list) !== a.date) changed.push({it, label:it.t, from:fmtList(it.list), to:fmtMonth(a.date)});
+      const ds = dateState(a.date);
+      if(a.st !== "x" && ds === "exp") expired.push({it, label:it.t, d:fmtMonth(a.date)});
+      if(a.st !== "x" && ds === "soon") soon.push({it, label:it.t, d:fmtMonth(a.date)});
+    }
+    if(it.type === "dev"){
+      it.fields.forEach(f => {
+        const v = a.f[f.fi];
+        if(f.ty === "month"){
+          if(toMonth(f.list) !== v) changed.push({it, label:`${it.t} – ${f.l}`, from:fmtList(f.list), to:fmtMonth(v)});
+          const ds = dateState(v);
+          if(ds === "exp") expired.push({it, label:`${it.t} – ${f.l}`, d:fmtMonth(v)});
+          if(ds === "soon") soon.push({it, label:`${it.t} – ${f.l}`, d:fmtMonth(v)});
+        }
+        if(f.ty === "text" && ((f.list && f.list !== "-") ? f.list : "") !== v) changed.push({it, label:`${it.t} – ${f.l}`, from:f.list || "–", to:v || "–"});
+        if(f.ty === "check" && v === "nicht ok") devIssues.push({it, label:`${it.t} – ${f.l}: nicht ok`});
+        if(f.ty === "number" && lowO2(v)) devIssues.push({it, label:`${it.t} – Füllstand ${v} bar (unter ${O2_MIN_BAR} bar)`});
+      });
+    }
+  });
+  const open = ITEMS.filter(i => !isDone(i));
+  return {missing, changed, expired, soon, devIssues, open};
+}
+
+function showSummary(){
+  const c = collect();
+  const ready = !c.open.length && S.km && S.kz;
+  const li = (arr, f) => arr.length ? `<ul class="list">${arr.map(f).join("")}</ul>` : `<p style="margin:0;color:var(--muted)">Keine.</p>`;
+  $("#vCheck").hidden = true; $("#goBar").hidden = true; $("#vSum").hidden = false;
+  $("#vSum").innerHTML = `
+    <h1 style="font-size:30px">Zusammenfassung ${esc(veh.id)}</h1>
+    ${c.open.length ? `<div class="msg bad">Noch ${c.open.length} Position${c.open.length===1?"":"en"} offen. Bitte zuerst vollständig prüfen.</div>` : ""}
+    ${!S.km || !S.kz ? `<div class="msg bad">Kilometerstand und Kürzel unter „Abschluss“ eintragen.</div>` : ""}
+    <div class="kpis">
+      <div class="kpi bad"><b class="num">${c.missing.length}</b><span>nicht vorhanden</span></div>
+      <div class="kpi warn"><b class="num">${c.expired.length + c.soon.length}</b><span>abgelaufen / bald fällig</span></div>
+      <div class="kpi chg"><b class="num">${c.changed.length}</b><span>Daten geändert</span></div>
+      <div class="kpi ok"><b class="num">${ITEMS.filter(isDone).length}</b><span>von ${ITEMS.length} geprüft</span></div>
+    </div>
+    ${c.open.length ? `<div class="box"><h3>Offene Positionen</h3>${li(c.open, i => `<li><button class="linkb" type="button" data-jump="${i.key}">${esc(i.t)}</button><span class="r">${i.type==="dev" && S.ans[i.key].st ? "Feld fehlt" : "nicht abgehakt"}</span></li>`)}</div>` : ""}
+    <div class="box"><h3>Nicht vorhanden</h3>${li(c.missing, m => `<li><span>${esc(m.it.t)}</span><span class="r">${esc(m.note || "ohne Bemerkung")}</span></li>`)}</div>
+    <div class="box"><h3>Abgelaufen oder läuft in ${SOON_DAYS} Tagen ab</h3>${li([...c.expired.map(x => ({...x, w:"abgelaufen"})), ...c.soon.map(x => ({...x, w:"bald"}))], x => `<li><span>${esc(x.label)}</span><span class="r num">${esc(x.d)} · ${x.w}</span></li>`)}</div>
+    <div class="box"><h3>Geänderte Daten gegenüber Liste</h3>${li(c.changed, x => `<li><span>${esc(x.label)}</span><span class="r num">${esc(x.from)} → ${esc(x.to)}</span></li>`)}</div>
+    ${c.devIssues.length ? `<div class="box"><h3>Gerätemeldungen</h3>${li(c.devIssues, x => `<li><span>${esc(x.label)}</span></li>`)}</div>` : ""}
+    ${S.maengel ? `<div class="box"><h3>Sonstige Mängel</h3><p style="margin:0;white-space:pre-wrap">${esc(S.maengel)}</p></div>` : ""}
+    <div id="sendMsg"></div>
+    <div class="row">
+      <button class="secondary" type="button" id="btnBack">Zurück zur Liste</button>
+      <button class="primary" type="button" id="btnSend" ${ready ? "" : "disabled"}>Bestandscheck absenden</button>
+    </div>
+    ${UPLOAD_TOKEN ? "" : `<p class="foot">Beim Absenden öffnet sich das Teilen-Menü: <b>luckycloud</b> wählen und im Ordner <b>Bestandscheck Eingang</b> sichern.</p>`}`;
+  window.scrollTo(0,0);
+}
+$("#btnSum").addEventListener("click", showSummary);
+$("#vCheck").addEventListener("click", e => { if(e.target.id === "btnSum2") showSummary(); });
+$("#vSum").addEventListener("click", async e => {
+  if(e.target.id === "btnBack"){ renderCheck(); return; }
+  const j = e.target.closest("[data-jump]");
+  if(j){ renderCheck(); const el = document.getElementById("row-" + j.dataset.jump); if(el){ el.classList.add("open-hl"); el.scrollIntoView({block:"center"}); } return; }
+  if(e.target.id === "btnSend"){ await send(); return; }
+  if(e.target.id === "btnNew"){ ls.del(LS_DRAFT + veh.id); S = newDraft(); renderCheck(); window.scrollTo(0,0); }
+});
+
+/* ---------- export ---------- */
+function csv(){
+  const now = new Date();
+  const d = now.toLocaleDateString("de-DE"), t = now.toLocaleTimeString("de-DE", {hour:"2-digit", minute:"2-digit"});
+  const q = v => { v = String(v ?? ""); return /[;"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
+  const head = ["Fahrzeug","Kennzeichen","Datum","Uhrzeit","Kürzel","Kilometerstand","Bereich","Material","Anzahl","Status","Feld","Wert_Liste","Wert_Check","Geändert","Bemerkung","Excel_Zeile","Excel_Spalte","Excel_Material"];
+  const rows = [];
+  const base = [veh.id, veh.kz, d, t, S.kz, S.km];
+  const secName = it => it.sec === "x" ? "Weitere Materialien" : APP.secs[it.sec].t;
+  const colL = c => ({mhd:"G", sn:"F", pads:"I", akku:"J"})[c] || "";
+  ITEMS.forEach(it => {
+    const a = S.ans[it.key];
+    const st = a.st === "ok" ? "vorhanden" : a.st === "x" ? "fehlt" : "offen";
+    if(it.type === "std"){
+      const lv = it.a ? toMonth(it.list) : "", cv = it.a ? a.date : "";
+      rows.push([...base, secName(it), it.t, it.s, st, it.a ? "Ablaufdatum" : "", lv, cv, it.a && lv !== cv ? "ja" : "", a.note, it.row ?? "", it.a && it.row ? "G" : "", it.xn || ""]);
+    } else {
+      rows.push([...base, secName(it), it.t, it.s, st, "", "", "", "", a.note, "", "", ""]);
+      it.fields.forEach(f => {
+        const v = a.f[f.fi];
+        const lv = f.ty === "month" ? toMonth(f.list) : f.ty === "text" ? ((f.list && f.list !== "-") ? f.list : "") : "";
+        const chg = (f.ty === "month" || f.ty === "text") && lv !== v ? "ja" : "";
+        const meld = f.ty === "number" && lowO2(v) ? `MELDUNG: unter ${O2_MIN_BAR} bar` : (f.ty === "check" && v === "nicht ok" ? "MELDUNG: Funktionstest nicht ok" : "");
+        rows.push([...base, secName(it), it.t, "", st, f.l, lv, v, chg, meld, f.row ?? "", f.row ? colL(f.col) : "", f.xn || ""]);
+      });
+    }
+  });
+  rows.push([...base, "Abschluss", "Sonstige Mängel", "", "", "", "", S.maengel, "", "", "", "", ""]);
+  const body = [head, ...rows].map(r => r.map(q).join(";")).join("\r\n");
+  const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
+  return {name:`Bestandcheck_${veh.id.replace(" ","")}_${stamp}.csv`, text:"﻿" + body};
+}
+
+/* ---------- Übertragung ---------- */
+const UPLOAD_TOKEN = window.KTN_UPLOAD_TOKEN || "";          // luckycloud Upload-Link (nur iPad-Version)
+const UPLOAD_HOST = "https://sync.luckycloud.de";
+const UPLOAD_DIR = window.KTN_UPLOAD_DIR || "/Bestandscheck Eingang";   // Pfad des freigegebenen Ordners in der Bibliothek
+const LS_OUTBOX = "ktn-bc-outbox";
+const outbox = {
+  get(){ try { return JSON.parse(ls.get(LS_OUTBOX) || "[]"); } catch(e){ return []; } },
+  set(a){ ls.set(LS_OUTBOX, JSON.stringify(a)); }
+};
+async function uploadDirect(name, text){
+  const r = await fetch(`${UPLOAD_HOST}/api/v2.1/upload-links/${UPLOAD_TOKEN}/upload/`, {cache:"no-store"});
+  if(!r.ok) throw new Error("Upload-Link " + r.status);
+  const j = await r.json();
+  if(!j.upload_link) throw new Error("kein Upload-Ziel");
+  // luckycloud nimmt über den Link nur Dateien für den freigegebenen Ordner an
+  const dirs = [j.parent_dir, j.path, UPLOAD_DIR, UPLOAD_DIR + "/", "/Bestandcheck :Eingang", "/"].filter((d, i, a) => d && a.indexOf(d) === i);
+  let last = "";
+  for(const dir of dirs){
+    const fd = new FormData();
+    fd.append("file", new File([text], name, {type:"text/csv"}));
+    fd.append("parent_dir", dir);
+    fd.append("replace", "0");
+    const u = await fetch(j.upload_link + (j.upload_link.includes("?") ? "&" : "?") + "ret-json=1", {method:"POST", body:fd});
+    if(u.ok) return;
+    last = "Upload " + u.status;
+    if(u.status !== 403 && u.status !== 400) break;
+  }
+  throw new Error(last || "Upload");
+}
+let flushing = false;
+async function flushOutbox(){
+  if(!UPLOAD_TOKEN || !navigator.onLine || flushing) return;
+  if(!outbox.get().length) return;
+  flushing = true;
+  try {
+    for(const it of outbox.get()){
+      try { await uploadDirect(it.name, it.text); outbox.set(outbox.get().filter(x => x.name !== it.name)); } catch(e){ break; }
+    }
+  } finally { flushing = false; }
+  const b = document.getElementById("outboxNote"); if(b) b.outerHTML = outboxNote();
+}
+function outboxNote(){
+  const n = outbox.get().length;
+  return n ? `<div class="due warn" id="outboxNote" role="status"><span class="ic" aria-hidden="true">⇡</span><div><b>${n} Check${n === 1 ? "" : "s"} warte${n === 1 ? "t" : "n"} auf Übertragung</b><span>Wird automatisch gesendet, sobald das iPad wieder Internet hat. Dafür die App einmal öffnen.</span></div></div>` : `<span id="outboxNote" hidden></span>`;
+}
+window.addEventListener("online", flushOutbox);
+document.addEventListener("visibilitychange", () => { if(!document.hidden) flushOutbox(); });
+
+function sentOk(box, f, text){
+  ls.set(LS_LAST + veh.id, new Date().toISOString());
+  box.innerHTML = `<div class="msg ok">${text}</div>
+    <div class="row" style="margin-top:10px"><button class="secondary" type="button" id="btnNew">Neuen Check beginnen</button></div>`;
+}
+
+async function shareFile(f){
+  const file = new File([f.text], f.name, {type:"text/csv"});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    await navigator.share({files:[file], title:`Bestandcheck ${veh.id}`});
+    return "geteilt";
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+  return "heruntergeladen";
+}
+
+let lastFile = null;
+async function send(){
+  const box = $("#sendMsg"); const btn = $("#btnSend");
+  const f = csv(); lastFile = f;
+  btn.disabled = true;
+  try {
+    // Claude-Vorschau
+    if(window.claude && window.claude.use){
+      box.innerHTML = `<div class="msg info">Datei wird erstellt …</div>`;
+      const dl = await dlPromise;
+      if(dl){ const r = await dl.save({filename:f.name, data:f.text}); sentOk(box, f, `${esc(f.name)} wurde ${r && r.status === "delivered" ? "übergeben" : "gespeichert"}.`); btn.disabled = false; return; }
+    }
+    // iPad-Version mit Upload-Link
+    if(UPLOAD_TOKEN){
+      if(!navigator.onLine){
+        const o = outbox.get(); o.push({name:f.name, text:f.text}); outbox.set(o);
+        sentOk(box, f, `Kein Internet – der Check ist gespeichert und wird automatisch übertragen, sobald das iPad wieder online ist.`);
+        btn.disabled = false; return;
+      }
+      box.innerHTML = `<div class="msg info">Wird an luckycloud übertragen …</div>`;
+      try {
+        await uploadDirect(f.name, f.text);
+        sentOk(box, f, `✓ Bestandscheck übertragen. Vielen Dank!`);
+        btn.disabled = false; return;
+      } catch(err){
+        box.innerHTML = `<div class="msg bad">Die direkte Übertragung hat nicht geklappt (${esc(err.message || "Fehler")}). Bitte über das Teilen-Menü senden: luckycloud → Ordner „Bestandscheck Eingang“.</div>
+          <div class="row" style="margin-top:10px"><button class="primary" type="button" id="btnShare">Über Teilen-Menü senden</button></div>`;
+        btn.disabled = false; return;
+      }
+    }
+    // ohne Upload-Link: Teilen-Menü
+    const how = await shareFile(f);
+    sentOk(box, f, `${esc(f.name)} wurde ${how}. Bitte sicherstellen, dass sie in luckycloud im Ordner „Eingang“ gelandet ist.`);
+  } catch(err){
+    const c = err && (err.code || err.name);
+    box.innerHTML = `<div class="msg bad">${c === "declined" || c === "AbortError" ? "Abgebrochen – die Datei wurde nicht gesendet. Bitte erneut auf „Bestandscheck absenden“ tippen." : "Die Datei konnte nicht gesendet werden (" + esc(c || "Fehler") + "). Bitte erneut versuchen."}</div>`;
+  }
+  btn.disabled = false;
+}
+$("#vSum").addEventListener("click", async e => {
+  if(e.target.id !== "btnShare" || !lastFile) return;
+  const box = $("#sendMsg");
+  try { const how = await shareFile(lastFile); sentOk(box, lastFile, `${esc(lastFile.name)} wurde ${how}. Bitte sicherstellen, dass sie in luckycloud im Ordner „Bestandscheck Eingang“ gelandet ist.`); }
+  catch(err){ if((err && err.name) !== "AbortError") box.insertAdjacentHTML("beforeend", `<div class="msg bad" style="margin-top:8px">Teilen nicht möglich (${esc(err.name || "Fehler")}).</div>`); }
+});
+
+/* ---------- boot ---------- */
+(function boot(){
+  const id = ls.get(LS_VEH);
+  const v = APP.veh.find(x => x.id === id);
+  if(v) openVehicle(v); else showStart();
+  flushOutbox();
+})();
+</script>

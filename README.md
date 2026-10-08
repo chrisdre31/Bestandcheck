@@ -7,3 +7,7 @@ Digitale Bestands-Checkliste der KTN Krankentransport Nord GmbH für die iPads d
 - Der automatische Abgleich mit dem Bestandsverzeichnis läuft auf dem Rechner der Geschäftsführung.
 
 Die Dateien werden automatisch erzeugt – bitte nicht von Hand bearbeiten.
+
+## Aktualisierung
+`quelle/` enthält die Bauanleitung. Der tägliche Abgleich exportiert die Materialliste aus dem Bestandsverzeichnis (`app_daten.json`);
+`sh quelle/aktualisieren.sh app_daten.json` baut daraus `index.html` neu.
