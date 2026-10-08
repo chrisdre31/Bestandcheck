@@ -1,5 +1,5 @@
 // Offline-Unterstützung: erst Netz (immer aktuelle Version), sonst Kopie aus dem Speicher
-const CACHE = "bestandscheck-f5fa047ecc";
+const CACHE = "bestandscheck-0d634d031d";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
