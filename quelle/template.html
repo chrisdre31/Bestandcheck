@@ -370,7 +370,7 @@ function devRow(it){
         <button type="button" class="n" data-k="${it.key}" data-f="${f.fi}" data-fv="nicht ok" aria-pressed="${v==="nicht ok"}">✗ nicht ok</button></div></div>`;
     }
     const type = f.ty === "number" ? `type="number" inputmode="decimal" min="0" max="300" class="req"` : f.ty === "month" ? `type="month"` : `type="text" autocapitalize="characters"`;
-    const chips = f.ty === "month" ? `<span class="chips" id="c-${it.key}-${f.fi}">${chipsFor(v, f.list)}</span>` : f.ty === "number" ? `<span class="chips" id="c-${it.key}-${f.fi}">${lowO2(v) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Flasche tauschen</span>` : ""}</span>` : "";
+    const chips = f.ty === "month" ? `<span class="chips" id="c-${it.key}-${f.fi}">${chipsFor(v, f.list)}</span>` : f.ty === "number" ? `<span class="chips" id="c-${it.key}-${f.fi}">${lowO2(v) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Ersatzflasche mitnehmen</span>` : ""}</span>` : "";
     return `<div class="fld"><label for="${id}">${esc(f.l)}</label><input ${type} id="${id}" data-k="${it.key}" data-f="${f.fi}" value="${esc(v)}" placeholder="${f.ty==="number" ? "bar eintragen" : ""}">${was}${chips}</div>`;
   }).join("");
   return `<div class="dev ${a.st}" id="row-${it.key}" data-k="${it.key}">
@@ -441,7 +441,7 @@ function refreshRow(key){
   if(it.type === "std" && it.a) document.getElementById("c-" + key).innerHTML = chipsFor(a.date, it.list);
   if(it.type === "dev") it.fields.forEach(f => {
     if(f.ty === "month"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = chipsFor(a.f[f.fi], f.list); }
-    if(f.ty === "number"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = lowO2(a.f[f.fi]) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Flasche tauschen</span>` : ""; }
+    if(f.ty === "number"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = lowO2(a.f[f.fi]) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Ersatzflasche mitnehmen</span>` : ""; }
     if(f.ty === "check") el.querySelectorAll(`[data-f="${f.fi}"]`).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.fv === a.f[f.fi])));
   });
   const c = document.getElementById("cnt-" + it.sec); if(c) c.textContent = secCount(it.sec);
@@ -519,7 +519,7 @@ function collect(){
         }
         if(f.ty === "text" && ((f.list && f.list !== "-") ? f.list : "") !== v) changed.push({it, label:`${it.t} – ${f.l}`, from:f.list || "–", to:v || "–"});
         if(f.ty === "check" && v === "nicht ok") devIssues.push({it, label:`${it.t} – ${f.l}: nicht ok`});
-        if(f.ty === "number" && lowO2(v)) devIssues.push({it, label:`${it.t} – Füllstand ${v} bar (unter ${O2_MIN_BAR} bar)`});
+        if(f.ty === "number" && lowO2(v)) devIssues.push({it, label:`${it.t} – Füllstand ${v} bar (unter ${O2_MIN_BAR} bar) – Ersatzflasche mitnehmen`});
       });
     }
   });
@@ -588,7 +588,7 @@ function csv(){
         const v = a.f[f.fi];
         const lv = f.ty === "month" ? toMonth(f.list) : f.ty === "text" ? ((f.list && f.list !== "-") ? f.list : "") : "";
         const chg = (f.ty === "month" || f.ty === "text") && lv !== v ? "ja" : "";
-        const meld = f.ty === "number" && lowO2(v) ? `MELDUNG: unter ${O2_MIN_BAR} bar` : (f.ty === "check" && v === "nicht ok" ? "MELDUNG: Funktionstest nicht ok" : "");
+        const meld = f.ty === "number" && lowO2(v) ? `MELDUNG: unter ${O2_MIN_BAR} bar – Ersatzflasche mitnehmen` : (f.ty === "check" && v === "nicht ok" ? "MELDUNG: Funktionstest nicht ok" : "");
         rows.push([...base, secName(it), it.t, "", st, f.l, lv, v, chg, meld, f.row ?? "", f.row ? colL(f.col) : "", f.xn || ""]);
       });
     }
