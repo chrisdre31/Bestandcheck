@@ -137,7 +137,7 @@ for v in d:
     extra=[{"t":b["name"],"n":b["name"],"r":b["r"],"mhd":b["mhd"],"sec":ORT.get(norm(b["ort"]),"x")}
            for k,b in byname.items() if k not in used_names]
     unmatched[v["id"]]=(miss,[e["t"] for e in extra])
-    veh.append({"id":v["id"],"kz":v["kz"],"vals":vals,"hide":hide,"extra":extra})
+    veh.append({"id":v["id"],"kz":v["kz"],"lc":v.get("letzter_check",""),"vals":vals,"hide":hide,"extra":extra})
 for k,(m,e) in unmatched.items():
     if m or e: print(k,"ausgeblendet:",m,"| zusätzlich aus Excel:",e)
 json.dump({"secs":secs,"veh":veh},open(OUT,"w",encoding="utf-8"),ensure_ascii=False,separators=(',',':'))

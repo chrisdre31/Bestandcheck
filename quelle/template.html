@@ -290,8 +290,9 @@ function isDone(it){
 
 /* ---------- Fälligkeit ---------- */
 function dueInfo(){
-  const raw = ls.get(LS_LAST + veh.id);
-  const last = raw ? new Date(raw) : null;
+  // letzter Check: auf diesem iPad abgeschickt oder laut Bestandsverzeichnis (der neuere zählt)
+  const cands = [ls.get(LS_LAST + veh.id), veh.lc].filter(Boolean).map(x => new Date(x)).filter(d => !isNaN(d));
+  const last = cands.length ? new Date(Math.max(...cands)) : null;
   if(!last || isNaN(last)) return {cls:"warn", ic:"!", h:"Bestandscheck fällig", t:"Auf diesem iPad wurde noch kein digitaler Check abgeschickt. Bitte jetzt durchführen."};
   const day = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const days = Math.round((day(new Date()) - day(last)) / 86400000);
