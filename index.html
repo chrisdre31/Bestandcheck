@@ -634,6 +634,7 @@ function csv(){
 /* ---------- Übertragung ---------- */
 const UPLOAD_TOKEN = window.KTN_UPLOAD_TOKEN || "";          // luckycloud Upload-Link (nur iPad-Version)
 const UPLOAD_HOST = "https://sync.luckycloud.de";
+const UPLOAD_DIR = window.KTN_UPLOAD_DIR || "/Bestandcheck :Eingang";   // Pfad des freigegebenen Ordners in der Bibliothek
 const LS_OUTBOX = "ktn-bc-outbox";
 const outbox = {
   get(){ try { return JSON.parse(ls.get(LS_OUTBOX) || "[]"); } catch(e){ return []; } },
@@ -644,12 +645,20 @@ async function uploadDirect(name, text){
   if(!r.ok) throw new Error("Upload-Link " + r.status);
   const j = await r.json();
   if(!j.upload_link) throw new Error("kein Upload-Ziel");
-  const fd = new FormData();
-  fd.append("file", new File([text], name, {type:"text/csv"}));
-  fd.append("parent_dir", "/");
-  fd.append("replace", "0");
-  const u = await fetch(j.upload_link + (j.upload_link.includes("?") ? "&" : "?") + "ret-json=1", {method:"POST", body:fd});
-  if(!u.ok) throw new Error("Upload " + u.status);
+  // luckycloud nimmt über den Link nur Dateien für den freigegebenen Ordner an
+  const dirs = [j.parent_dir, j.path, UPLOAD_DIR, UPLOAD_DIR + "/", "/"].filter((d, i, a) => d && a.indexOf(d) === i);
+  let last = "";
+  for(const dir of dirs){
+    const fd = new FormData();
+    fd.append("file", new File([text], name, {type:"text/csv"}));
+    fd.append("parent_dir", dir);
+    fd.append("replace", "0");
+    const u = await fetch(j.upload_link + (j.upload_link.includes("?") ? "&" : "?") + "ret-json=1", {method:"POST", body:fd});
+    if(u.ok) return;
+    last = "Upload " + u.status;
+    if(u.status !== 403 && u.status !== 400) break;
+  }
+  throw new Error(last || "Upload");
 }
 let flushing = false;
 async function flushOutbox(){
