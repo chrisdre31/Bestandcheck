@@ -388,7 +388,7 @@ function secCount(si){
 
 function renderCheck(){
   $("#vStart").hidden = true; $("#vSum").hidden = true;
-  $("#bar").hidden = false; $("#vCheck").hidden = false;
+  $("#bar").hidden = false; $("#vCheck").hidden = false; $("#btnVeh").hidden = false;
   $("#vName").textContent = veh.id;
   $("#vSub").textContent = `${veh.kz} · ${new Date().toLocaleDateString("de-DE")}`;
   const secs = APP.secs.map((s, si) => ({si, t:s.t, a:s.a, items: ITEMS.filter(i => i.sec === si)}));
@@ -583,11 +583,11 @@ function showSummary(){
 }
 $("#vCheck").addEventListener("click", e => { if(e.target.id === "btnSum2") showSummary(); });
 $("#vSum").addEventListener("click", async e => {
-  if(e.target.id === "btnBack"){ renderCheck(); return; }
+  if(e.target.id === "btnBack"){ if(!S) return; renderCheck(); return; }
   const j = e.target.closest("[data-jump]");
-  if(j){ renderCheck(); const el = document.getElementById("row-" + j.dataset.jump); if(el){ el.classList.add("open-hl"); el.scrollIntoView({block:"center"}); } return; }
+  if(j && S){ renderCheck(); const el = document.getElementById("row-" + j.dataset.jump); if(el){ el.classList.add("open-hl"); el.scrollIntoView({block:"center"}); } return; }
   if(e.target.id === "btnSend"){ await send(); return; }
-  if(e.target.id === "btnNew"){ ls.del(LS_DRAFT + veh.id); S = newDraft(); renderCheck(); window.scrollTo(0,0); }
+  if(e.target.id === "btnNew"){ ls.del(LS_DRAFT + veh.id); S = newDraft(); save(); renderCheck(); window.scrollTo(0,0); }
 });
 
 /* ---------- export ---------- */
@@ -673,9 +673,22 @@ window.addEventListener("online", flushOutbox);
 document.addEventListener("visibilitychange", () => { if(!document.hidden) flushOutbox(); });
 
 function sentOk(box, f, text){
+  // Check ist abgeschickt: Entwurf löschen, zurück zur Liste ist nicht mehr möglich – nur ein neuer Check
   ls.set(LS_LAST + veh.id, new Date().toISOString());
-  box.innerHTML = `<div class="msg ok">${text}</div>
-    <div class="row" style="margin-top:10px"><button class="secondary" type="button" id="btnNew">Neuen Check beginnen</button></div>`;
+  ls.del(LS_DRAFT + veh.id);
+  S = null;
+  showDone(text);
+}
+function showDone(text){
+  $("#vCheck").hidden = true; $("#vCheck").innerHTML = "";
+  $("#btnVeh").hidden = true;
+  $("#vSum").hidden = false;
+  $("#vSum").innerHTML = `
+    <h1 style="font-size:30px">Bestandscheck abgeschickt</h1>
+    <div class="msg ok">${text}</div>
+    <p style="margin:0;color:var(--muted)">Der Check ist abgeschlossen und kann nicht mehr geändert werden. Für den nächsten Bestandscheck eine neue Checkliste beginnen.</p>
+    <div class="row"><button class="primary" type="button" id="btnNew">Neue Checkliste beginnen</button></div>`;
+  window.scrollTo(0,0);
 }
 
 async function shareFile(f){
@@ -694,29 +707,31 @@ async function send(){
   const box = $("#sendMsg"); const btn = $("#btnSend");
   const f = csv(); lastFile = f;
   btn.disabled = true;
+  const back = $("#btnBack"); if(back) back.disabled = true;
+  const unlock = () => { const b = $("#btnBack"); if(b) b.disabled = false; };
   try {
     // Claude-Vorschau
     if(window.claude && window.claude.use){
       box.innerHTML = `<div class="msg info">Datei wird erstellt …</div>`;
       const dl = await dlPromise;
-      if(dl){ const r = await dl.save({filename:f.name, data:f.text}); sentOk(box, f, `${esc(f.name)} wurde ${r && r.status === "delivered" ? "übergeben" : "gespeichert"}.`); btn.disabled = false; return; }
+      if(dl){ const r = await dl.save({filename:f.name, data:f.text}); sentOk(box, f, `${esc(f.name)} wurde ${r && r.status === "delivered" ? "übergeben" : "gespeichert"}.`); btn.disabled = false; if(S) unlock(); return; }
     }
     // iPad-Version mit Upload-Link
     if(UPLOAD_TOKEN){
       if(!navigator.onLine){
         const o = outbox.get(); o.push({name:f.name, text:f.text}); outbox.set(o);
         sentOk(box, f, `Kein Internet – der Check ist gespeichert und wird automatisch übertragen, sobald das iPad wieder online ist.`);
-        btn.disabled = false; return;
+        btn.disabled = false; if(S) unlock(); return;
       }
       box.innerHTML = `<div class="msg info">Wird an luckycloud übertragen …</div>`;
       try {
         await uploadDirect(f.name, f.text);
         sentOk(box, f, `✓ Bestandscheck übertragen. Vielen Dank!`);
-        btn.disabled = false; return;
+        btn.disabled = false; if(S) unlock(); return;
       } catch(err){
         box.innerHTML = `<div class="msg bad">Die direkte Übertragung hat nicht geklappt (${esc(err.message || "Fehler")}). Bitte über das Teilen-Menü senden: luckycloud → Ordner „Bestandscheck Eingang“.</div>
           <div class="row" style="margin-top:10px"><button class="primary" type="button" id="btnShare">Über Teilen-Menü senden</button></div>`;
-        btn.disabled = false; return;
+        btn.disabled = false; if(S) unlock(); return;
       }
     }
     // ohne Upload-Link: Teilen-Menü
@@ -726,7 +741,7 @@ async function send(){
     const c = err && (err.code || err.name);
     box.innerHTML = `<div class="msg bad">${c === "declined" || c === "AbortError" ? "Abgebrochen – die Datei wurde nicht gesendet. Bitte erneut auf „Bestandscheck absenden“ tippen." : "Die Datei konnte nicht gesendet werden (" + esc(c || "Fehler") + "). Bitte erneut versuchen."}</div>`;
   }
-  btn.disabled = false;
+  btn.disabled = false; if(S) unlock();
 }
 $("#vSum").addEventListener("click", async e => {
   if(e.target.id !== "btnShare" || !lastFile) return;
