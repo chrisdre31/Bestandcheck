@@ -44,7 +44,7 @@ C=[
   ("Hautschutzcreme Baktolan","1",["Hautsschutzcreme Baltolan","Hautschutzcreme Baktolan"]),
   ("Desinfektionstücher (Microbac Tissues)","2 Pck.",["Desinfektionstücher Microbac Tissues"]),
   ("FFP2 Masken","10",["FFP2"]),
-  ("FFP3 Masken","4",["FFP3"]),
+  ("FFP3 Masken","4",["FFP3"],True,True),   # immer mit Ablaufdatum (auch wenn die Excel noch keins hat)
   ("Steckbecken","1",["Steckbecken"]),
   ("Urinflasche","1",["Urinflasche"]),
   ("Handschuhe (unsterile)","2 Pck.",["Handschuhe (unsterile)"]),
@@ -107,7 +107,9 @@ for title,abl,items in C:
             for f in spec["dev"]:
                 for n in (f[3] or []): used_names.add(norm(n))
         else:
-            out.append({"t":label,"s":soll,"a":bool(ablauf),"xl":spec})
+            o={"t":label,"s":soll,"a":bool(ablauf),"xl":spec}
+            if len(it)>4 and it[4]: o["d"]=True     # Datumsfeld immer anzeigen (Pflicht)
+            out.append(o)
             for n in spec: used_names.add(norm(n))
     secs.append({"t":title,"a":abl,"items":out})
 ORT = {"notfalltasche":0, "notfalltasche/fächer pat.-raum":1, "fächer im pat.-raum":2,

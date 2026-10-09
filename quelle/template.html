@@ -241,7 +241,7 @@ function buildItems(){
         })});
       } else {
         const x = veh.vals[key];
-        out.push({key, sec:si, type:"std", t:it.t, s:it.s, a:!!(it.a && x && toMonth(x.v)), row:x ? x.r : null, xn:x ? x.n : "", list: x ? x.v : ""});
+        out.push({key, sec:si, type:"std", t:it.t, s:it.s, a:!!(it.a && x && (toMonth(x.v) || it.d)), row:x ? x.r : null, xn:x ? x.n : "", list: x ? x.v : ""});
       }
     });
   });
