@@ -82,6 +82,11 @@ input,textarea{font:inherit;color:var(--ink)}
 .dt{display:flex;flex-direction:column;gap:2px;min-width:0}
 .dt input{display:block;width:100%;min-width:0;max-width:100%;height:48px;min-height:48px;-webkit-appearance:none;appearance:none;line-height:46px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 10px;font-size:16px}
 .dt .was{font-size:12px;color:var(--muted)}
+.dt input.empty,.fld input.empty{border-color:var(--warn);border-width:1.5px}
+.sigwrap{display:flex;flex-direction:column;gap:6px}
+.sigwrap canvas{width:100%;height:170px;border:1.5px solid var(--line);border-radius:8px;background:#fff;touch-action:none;display:block}
+.sigwrap canvas.empty{border-color:var(--warn)}
+.sigwrap .sigrow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .tog{display:flex;gap:8px;justify-content:flex-end}
 .tb{width:54px;height:48px;border-radius:9px;border:1.5px solid var(--line);background:var(--surface);font-size:24px;line-height:1;display:grid;place-items:center}
 .tb.ok[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:#fff}
@@ -189,7 +194,7 @@ input,textarea{font:inherit;color:var(--ink)}
 <script>
 const APP = __DATA__;
 const STAND = "März 2026";
-const DATA_VER = "2026-10-08c";
+const DATA_VER = "2026-10-09a";   // neue Version: Entwürfe mit vorausgefüllten Daten verwerfen
 const SOON_DAYS = 30;
 const CHECK_INTERVAL = 14; // Tage zwischen zwei Checks
 const O2_MIN_BAR = 50;   // Meldung, wenn Füllstand darunter liegt
@@ -256,20 +261,20 @@ function buildItems(){
   return out;
 }
 const norm = s => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+const snNorm = s => String(s || "").toUpperCase().replace(/[\s\-_./]/g, "");
+// Pflichtfelder: Datum/S-Nr. muss eingetragen werden, wenn das Bestandsverzeichnis dafür einen Wert führt
+const listText = v => (v && v !== "-") ? String(v).trim() : "";
+const needF = f => (f.ty === "month" && !!toMonth(f.list)) || (f.ty === "text" && !!listText(f.list)) || f.ty === "number" || f.ty === "check";
 let ITEMS = [];
 
 function newDraft(){
-  const d = {ver: DATA_VER, ktw: veh.id, started: new Date().toISOString(), ans:{}, km:"", kz: ls.get(LS_KZ) || "", maengel:""};
+  const d = {ver: DATA_VER, ktw: veh.id, started: new Date().toISOString(), ans:{}, km:"", kz: ls.get(LS_KZ) || "", maengel:"", sig:""};
   ITEMS.forEach(it => {
     if(it.type === "std"){
-      d.ans[it.key] = {st:"", note:"", date: it.a ? toMonth(it.list) : ""};
+      d.ans[it.key] = {st:"", note:"", date:""};   // Ablaufdatum muss beim Check abgelesen werden
     } else {
       const f = {};
-      it.fields.forEach(x => {
-        if(x.ty === "month") f[x.fi] = toMonth(x.list);
-        else if(x.ty === "text") f[x.fi] = (x.list && x.list !== "-") ? x.list : "";
-        else f[x.fi] = "";
-      });
+      it.fields.forEach(x => { f[x.fi] = ""; });   // TÜV-Daten und Seriennummern ebenfalls leer
       d.ans[it.key] = {st:"", note:"", f};
     }
   });
@@ -280,9 +285,10 @@ function save(){ if(S) ls.set(LS_DRAFT + veh.id, JSON.stringify(S)); }
 function isDone(it){
   const a = S.ans[it.key];
   if(!a || !a.st) return false;
+  if(it.type === "std" && it.a && a.st === "ok" && !a.date) return false;
   if(it.type === "dev" && a.st === "ok"){
     for(const f of it.fields){
-      if((f.ty === "number" || f.ty === "check") && !a.f[f.fi]) return false;
+      if(needF(f) && !String(a.f[f.fi] ?? "").trim()) return false;
     }
   }
   return true;
@@ -332,23 +338,21 @@ function openVehicle(v){
 }
 
 /* ---------- check view ---------- */
-function chipsFor(month, listVal){
+function chipsFor(month){
+  // nur der Zustand des eingetragenen Datums – der Wert aus der Liste wird nicht verraten
   const st = dateState(month);
-  let h = "";
-  if(st === "exp") h += `<span class="chip exp">abgelaufen</span>`;
-  if(st === "soon") h += `<span class="chip soon">läuft bald ab</span>`;
-  if(month && toMonth(listVal) !== month) h += `<span class="chip chg">neues Datum</span>`;
-  if(!month && toMonth(listVal)) h += `<span class="chip chg">Datum gelöscht</span>`;
-  return h;
+  if(st === "exp") return `<span class="chip exp">abgelaufen</span>`;
+  if(st === "soon") return `<span class="chip soon">läuft bald ab</span>`;
+  return "";
 }
 
 function stdRow(it){
   const a = S.ans[it.key];
   const dateCell = it.a
-    ? `<div class="dt"><input type="month" id="d-${it.key}" data-k="${it.key}" data-role="date" value="${esc(a.date)}" aria-label="Ablaufdatum ${esc(it.t)}"></div>`
+    ? `<div class="dt"><input type="month" class="${a.date ? "" : "empty"}" id="d-${it.key}" data-k="${it.key}" data-role="date" value="${esc(a.date)}" aria-label="Ablaufdatum ${esc(it.t)} eintragen"></div>`
     : `<div></div>`;
   return `<div class="it ${a.st}" id="row-${it.key}" data-k="${it.key}">
-    <div class="lab"><span class="t">${esc(it.t)}</span><span class="chips" id="c-${it.key}">${it.a ? chipsFor(a.date, it.list) : ""}</span></div>
+    <div class="lab"><span class="t">${esc(it.t)}</span><span class="chips" id="c-${it.key}">${it.a ? chipsFor(a.date) : ""}</span></div>
     <div class="soll num">${esc(it.s)}</div>
     ${dateCell}
     <div class="tog">
@@ -370,9 +374,10 @@ function devRow(it){
         <button type="button" class="y" data-k="${it.key}" data-f="${f.fi}" data-fv="ok" aria-pressed="${v==="ok"}">✓ in Ordnung</button>
         <button type="button" class="n" data-k="${it.key}" data-f="${f.fi}" data-fv="nicht ok" aria-pressed="${v==="nicht ok"}">✗ nicht ok</button></div></div>`;
     }
-    const type = f.ty === "number" ? `type="number" inputmode="decimal" min="0" max="300" class="req"` : f.ty === "month" ? `type="month"` : `type="text" autocapitalize="characters"`;
-    const chips = f.ty === "month" ? `<span class="chips" id="c-${it.key}-${f.fi}">${chipsFor(v, f.list)}</span>` : f.ty === "number" ? `<span class="chips" id="c-${it.key}-${f.fi}">${lowO2(v) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Ersatzflasche mitnehmen</span>` : ""}</span>` : "";
-    return `<div class="fld"><label for="${id}">${esc(f.l)}</label><input ${type} id="${id}" data-k="${it.key}" data-f="${f.fi}" value="${esc(v)}" placeholder="${f.ty==="number" ? "bar eintragen" : ""}">${was}${chips}</div>`;
+    const emp = needF(f) && !String(v ?? "").trim() ? "empty" : "";
+    const type = f.ty === "number" ? `type="number" inputmode="decimal" min="0" max="300" class="req"` : f.ty === "month" ? `type="month" class="${emp}"` : `type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" class="${emp}"`;
+    const chips = f.ty === "month" ? `<span class="chips" id="c-${it.key}-${f.fi}">${chipsFor(v)}</span>` : f.ty === "number" ? `<span class="chips" id="c-${it.key}-${f.fi}">${lowO2(v) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Ersatzflasche mitnehmen</span>` : ""}</span>` : "";
+    return `<div class="fld"><label for="${id}">${esc(f.l)}</label><input ${type} id="${id}" data-k="${it.key}" data-f="${f.fi}" value="${esc(v)}" placeholder="${f.ty==="number" ? "bar eintragen" : f.ty==="text" ? (needF(f) ? "vom Gerät ablesen" : "falls vorhanden") : ""}">${was}${chips}</div>`;
   }).join("");
   return `<div class="dev ${a.st}" id="row-${it.key}" data-k="${it.key}">
     <div class="lab"><span class="t">${esc(it.t)}</span>${it.s ? `<span class="soll num" style="text-align:left">Anzahl ${esc(it.s)}</span>` : ""}</div>
@@ -412,22 +417,26 @@ function renderCheck(){
       <div class="fld"><label for="inKm">Kilometerstand</label><input id="inKm" type="number" inputmode="numeric" class="req" placeholder="z. B. 184250" value="${esc(S.km)}"></div>
       <div class="fld"><label for="inKz">Kürzel</label><input id="inKz" type="text" class="req" autocapitalize="characters" placeholder="Dein Kürzel" value="${esc(S.kz)}"></div>
       <div class="fld wide"><label for="inM">Sonstige Mängel</label><textarea id="inM" placeholder="Alles, was sonst auffällt – Fahrzeug, Geräte, Sauberkeit …">${esc(S.maengel)}</textarea></div>
+      <div class="fld wide sigwrap"><label for="sig">Unterschrift Prüfer/in</label>
+        <canvas id="sig" class="${S.sig ? "" : "empty"}" aria-label="Mit dem Finger unterschreiben"></canvas>
+        <div class="sigrow"><span>Mit dem Finger im Feld unterschreiben. Bestätigt die Angaben dieses Checks.</span><button class="ghost" type="button" id="sigClr">Unterschrift löschen</button></div></div>
       <div class="wide" style="display:flex;justify-content:flex-end"><button class="primary" type="button" id="btnSum2">Prüfen &amp; absenden</button></div>
     </div>
   </section>
-  <p class="foot">Checkliste Stand ${STAND}. Ablaufdaten aus dem Bestandsverzeichnis sind vorausgefüllt – nur ändern, wenn das Datum am Produkt abweicht. ✓ heißt: vorhanden und haltbar.</p>`;
+  <p class="foot">Checkliste Stand ${STAND}. Ablaufdaten, TÜV-Termine und Seriennummern bitte direkt am Produkt ablesen und eintragen (bei mehreren Stück das früheste Datum). ✓ heißt: vorhanden und haltbar.</p>`;
   $("#vCheck").innerHTML = h;
+  initSig();
   updateProgress();
 }
 
 function updateProgress(){
   const done = ITEMS.filter(isDone).length, tot = ITEMS.length;
-  const fin = S.km && S.kz;
+  const fin = S.km && S.kz && S.sig;
   $("#pTxt").textContent = `${done} von ${tot} geprüft`;
   $("#pPct").textContent = `${Math.round(done/tot*100)} %`;
   $("#pFill").style.width = `${done/tot*100}%`;
   const open = tot - done;
-  $("#goHint").textContent = open ? `Noch ${open} Position${open===1?"":"en"} offen.` : (fin ? "Alles geprüft – bereit zum Absenden." : "Kilometerstand und Kürzel fehlen noch.");
+  $("#goHint").textContent = open ? `Noch ${open} Position${open===1?"":"en"} offen.` : (fin ? "Alles geprüft – bereit zum Absenden." : "Kilometerstand, Kürzel und Unterschrift fehlen noch.");
 }
 
 function refreshRow(key){
@@ -439,16 +448,57 @@ function refreshRow(key){
   if(a.st) el.classList.add(a.st);
   el.querySelectorAll(".tb").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === a.st)));
   const n = el.querySelector(".note"); if(n) n.hidden = a.st !== "x";
-  if(it.type === "std" && it.a) document.getElementById("c-" + key).innerHTML = chipsFor(a.date, it.list);
+  if(it.type === "std" && it.a){
+    document.getElementById("c-" + key).innerHTML = chipsFor(a.date);
+    const di = document.getElementById("d-" + key); if(di) di.classList.toggle("empty", !a.date);
+  }
   if(it.type === "dev") it.fields.forEach(f => {
-    if(f.ty === "month"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = chipsFor(a.f[f.fi], f.list); }
+    if(f.ty === "month"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = chipsFor(a.f[f.fi]); }
+    if(f.ty === "month" || f.ty === "text"){ const fi = document.getElementById(`f-${key}-${f.fi}`); if(fi) fi.classList.toggle("empty", needF(f) && !String(a.f[f.fi] ?? "").trim()); }
     if(f.ty === "number"){ const c = document.getElementById(`c-${key}-${f.fi}`); if(c) c.innerHTML = lowO2(a.f[f.fi]) ? `<span class="chip exp">unter ${O2_MIN_BAR} bar – Ersatzflasche mitnehmen</span>` : ""; }
     if(f.ty === "check") el.querySelectorAll(`[data-f="${f.fi}"]`).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.fv === a.f[f.fi])));
   });
   const c = document.getElementById("cnt-" + it.sec); if(c) c.textContent = secCount(it.sec);
 }
 
+/* ---------- Unterschrift ---------- */
+function initSig(){
+  const cv = document.getElementById("sig"); if(!cv) return;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const w = cv.clientWidth || 600, hgt = cv.clientHeight || 170;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  const ctx = cv.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 2.4; ctx.strokeStyle = "#0d1b2a";
+  if(S.sig){ const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, w, hgt); im.src = S.sig; }
+  let drawing = false, last = null, dirty = false;
+  const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener("pointerdown", e => { drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.arc(last[0], last[1], 1.1, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill(); dirty = true; e.preventDefault(); });
+  cv.addEventListener("pointermove", e => {
+    if(!drawing) return;
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    last = p; dirty = true; e.preventDefault();
+  });
+  const end = () => {
+    if(!drawing) return; drawing = false;
+    if(!dirty) return;
+    // verkleinert speichern (max. 600 px breit, weißer Hintergrund) – geht mit der CSV ins Protokoll
+    const sc = Math.min(1, 600 / cv.width);
+    const out = document.createElement("canvas"); out.width = Math.round(cv.width * sc); out.height = Math.round(cv.height * sc);
+    const o = out.getContext("2d"); o.fillStyle = "#fff"; o.fillRect(0, 0, out.width, out.height); o.drawImage(cv, 0, 0, out.width, out.height);
+    S.sig = out.toDataURL("image/png"); cv.classList.remove("empty"); save(); updateProgress();
+  };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end); cv.addEventListener("pointerleave", end);
+}
+
 $("#vCheck").addEventListener("click", e => {
+  if(e.target.id === "sigClr"){
+    S.sig = ""; save();
+    const cv = document.getElementById("sig");
+    if(cv){ cv.getContext("2d").clearRect(0, 0, cv.width, cv.height); cv.classList.add("empty"); }
+    updateProgress(); return;
+  }
   const tb = e.target.closest(".tb");
   if(tb){
     const a = S.ans[tb.dataset.k];
@@ -504,7 +554,7 @@ function collect(){
     const a = S.ans[it.key];
     if(a.st === "x") missing.push({it, note:a.note});
     if(it.type === "std" && it.a){
-      if(toMonth(it.list) !== a.date) changed.push({it, label:it.t, from:fmtList(it.list), to:fmtMonth(a.date)});
+      if(a.st === "ok" && a.date && toMonth(it.list) !== a.date) changed.push({it, label:it.t, to:fmtMonth(a.date)});
       const ds = dateState(a.date);
       if(a.st !== "x" && ds === "exp") expired.push({it, label:it.t, d:fmtMonth(a.date)});
       if(a.st !== "x" && ds === "soon") soon.push({it, label:it.t, d:fmtMonth(a.date)});
@@ -513,12 +563,12 @@ function collect(){
       it.fields.forEach(f => {
         const v = a.f[f.fi];
         if(f.ty === "month"){
-          if(toMonth(f.list) !== v) changed.push({it, label:`${it.t} – ${f.l}`, from:fmtList(f.list), to:fmtMonth(v)});
+          if(a.st === "ok" && v && toMonth(f.list) !== v) changed.push({it, label:`${it.t} – ${f.l}`, to:fmtMonth(v)});
           const ds = dateState(v);
           if(ds === "exp") expired.push({it, label:`${it.t} – ${f.l}`, d:fmtMonth(v)});
           if(ds === "soon") soon.push({it, label:`${it.t} – ${f.l}`, d:fmtMonth(v)});
         }
-        if(f.ty === "text" && ((f.list && f.list !== "-") ? f.list : "") !== v) changed.push({it, label:`${it.t} – ${f.l}`, from:f.list || "–", to:v || "–"});
+        if(f.ty === "text" && a.st === "ok" && String(v || "").trim() && snNorm(listText(f.list)) !== snNorm(v)) changed.push({it, label:`${it.t} – ${f.l}`, to:String(v).trim()});
         if(f.ty === "check" && v === "nicht ok") devIssues.push({it, label:`${it.t} – ${f.l}: nicht ok`});
         if(f.ty === "number" && lowO2(v)) devIssues.push({it, label:`${it.t} – Füllstand ${v} bar (unter ${O2_MIN_BAR} bar) – Ersatzflasche mitnehmen`});
       });
@@ -530,23 +580,23 @@ function collect(){
 
 function showSummary(){
   const c = collect();
-  const ready = !c.open.length && S.km && S.kz;
+  const ready = !c.open.length && S.km && S.kz && S.sig;
   const li = (arr, f) => arr.length ? `<ul class="list">${arr.map(f).join("")}</ul>` : `<p style="margin:0;color:var(--muted)">Keine.</p>`;
   $("#vCheck").hidden = true; $("#goBar").hidden = true; $("#vSum").hidden = false;
   $("#vSum").innerHTML = `
     <h1 style="font-size:30px">Zusammenfassung ${esc(veh.id)}</h1>
     ${c.open.length ? `<div class="msg bad">Noch ${c.open.length} Position${c.open.length===1?"":"en"} offen. Bitte zuerst vollständig prüfen.</div>` : ""}
-    ${!S.km || !S.kz ? `<div class="msg bad">Kilometerstand und Kürzel unter „Abschluss“ eintragen.</div>` : ""}
+    ${!S.km || !S.kz || !S.sig ? `<div class="msg bad">Unter „Abschluss“ noch eintragen: ${[!S.km && "Kilometerstand", !S.kz && "Kürzel", !S.sig && "Unterschrift"].filter(Boolean).join(", ")}.</div>` : ""}
     <div class="kpis">
       <div class="kpi bad"><b class="num">${c.missing.length}</b><span>nicht vorhanden</span></div>
       <div class="kpi warn"><b class="num">${c.expired.length + c.soon.length}</b><span>abgelaufen / bald fällig</span></div>
-      <div class="kpi chg"><b class="num">${c.changed.length}</b><span>Daten geändert</span></div>
+      <div class="kpi chg"><b class="num">${c.changed.length}</b><span>weichen von der Liste ab</span></div>
       <div class="kpi ok"><b class="num">${ITEMS.filter(isDone).length}</b><span>von ${ITEMS.length} geprüft</span></div>
     </div>
-    ${c.open.length ? `<div class="box"><h3>Offene Positionen</h3>${li(c.open, i => `<li><button class="linkb" type="button" data-jump="${i.key}">${esc(i.t)}</button><span class="r">${i.type==="dev" && S.ans[i.key].st ? "Feld fehlt" : "nicht abgehakt"}</span></li>`)}</div>` : ""}
+    ${c.open.length ? `<div class="box"><h3>Offene Positionen</h3>${li(c.open, i => `<li><button class="linkb" type="button" data-jump="${i.key}">${esc(i.t)}</button><span class="r">${!S.ans[i.key].st ? "nicht abgehakt" : i.type==="dev" ? "Feld fehlt" : "Ablaufdatum fehlt"}</span></li>`)}</div>` : ""}
     <div class="box"><h3>Nicht vorhanden</h3>${li(c.missing, m => `<li><span>${esc(m.it.t)}</span><span class="r">${esc(m.note || "ohne Bemerkung")}</span></li>`)}</div>
     <div class="box"><h3>Abgelaufen oder läuft in ${SOON_DAYS} Tagen ab</h3>${li([...c.expired.map(x => ({...x, w:"abgelaufen"})), ...c.soon.map(x => ({...x, w:"bald"}))], x => `<li><span>${esc(x.label)}</span><span class="r num">${esc(x.d)} · ${x.w}</span></li>`)}</div>
-    <div class="box"><h3>Geänderte Daten gegenüber Liste</h3>${li(c.changed, x => `<li><span>${esc(x.label)}</span><span class="r num">${esc(x.from)} → ${esc(x.to)}</span></li>`)}</div>
+    <div class="box"><h3>Abweichungen zum Bestandsverzeichnis</h3>${c.changed.length ? `<p style="margin:0 0 10px;color:var(--muted)">Bei diesen Produkten passt dein Eintrag nicht zur Liste. Bitte direkt am Produkt noch einmal kontrollieren – stimmt der Eintrag, einfach so absenden.</p>` : ""}${li(c.changed, x => `<li><button class="linkb" type="button" data-jump="${x.it.key}">${esc(x.label)}</button><span class="r num">dein Eintrag: ${esc(x.to)}</span></li>`)}</div>
     ${c.devIssues.length ? `<div class="box"><h3>Gerätemeldungen</h3>${li(c.devIssues, x => `<li><span>${esc(x.label)}</span></li>`)}</div>` : ""}
     ${S.maengel ? `<div class="box"><h3>Sonstige Mängel</h3><p style="margin:0;white-space:pre-wrap">${esc(S.maengel)}</p></div>` : ""}
     <div id="sendMsg"></div>
@@ -582,19 +632,20 @@ function csv(){
     const st = a.st === "ok" ? "vorhanden" : a.st === "x" ? "fehlt" : "offen";
     if(it.type === "std"){
       const lv = it.a ? toMonth(it.list) : "", cv = it.a ? a.date : "";
-      rows.push([...base, secName(it), it.t, it.s, st, it.a ? "Ablaufdatum" : "", lv, cv, it.a && lv !== cv ? "ja" : "", a.note, it.row ?? "", it.a && it.row ? "G" : "", it.xn || ""]);
+      rows.push([...base, secName(it), it.t, it.s, st, it.a ? "Ablaufdatum" : "", lv, cv, it.a && cv && lv !== cv ? "ja" : "", a.note, it.row ?? "", it.a && it.row ? "G" : "", it.xn || ""]);
     } else {
       rows.push([...base, secName(it), it.t, it.s, st, "", "", "", "", a.note, "", "", ""]);
       it.fields.forEach(f => {
         const v = a.f[f.fi];
         const lv = f.ty === "month" ? toMonth(f.list) : f.ty === "text" ? ((f.list && f.list !== "-") ? f.list : "") : "";
-        const chg = (f.ty === "month" || f.ty === "text") && lv !== v ? "ja" : "";
+        const chg = (f.ty === "month" && v && lv !== v) || (f.ty === "text" && String(v || "").trim() && snNorm(lv) !== snNorm(v)) ? "ja" : "";
         const meld = f.ty === "number" && lowO2(v) ? `MELDUNG: unter ${O2_MIN_BAR} bar – Ersatzflasche mitnehmen` : (f.ty === "check" && v === "nicht ok" ? "MELDUNG: Funktionstest nicht ok" : "");
         rows.push([...base, secName(it), it.t, "", st, f.l, lv, v, chg, meld, f.row ?? "", f.row ? colL(f.col) : "", f.xn || ""]);
       });
     }
   });
   rows.push([...base, "Abschluss", "Sonstige Mängel", "", "", "", "", S.maengel, "", "", "", "", ""]);
+  rows.push([...base, "Abschluss", "Unterschrift", "", "", "", "", S.sig || "", "", "", "", "", ""]);
   const body = [head, ...rows].map(r => r.map(q).join(";")).join("\r\n");
   const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
   return {name:`Bestandcheck_${veh.id.replace(" ","")}_${stamp}.csv`, text:"﻿" + body};
