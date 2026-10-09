@@ -30,7 +30,7 @@ input[type=month]{text-align:left}
 input[type=month]::-webkit-date-and-time-value{text-align:left;margin:0}
 input[type=month]::-webkit-datetime-edit{padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.4;-webkit-text-size-adjust:100%}
-.wrap{max-width:960px;margin:0 auto;padding-inline:16px;padding-block:0 120px}
+.wrap{max-width:960px;margin:0 auto;padding-inline:16px;padding-block:0 calc(40px + env(safe-area-inset-bottom,0px))}
 h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
 button{font:inherit;color:inherit;cursor:pointer}
 input,textarea{font:inherit;color:var(--ink)}
@@ -115,9 +115,6 @@ input,textarea{font:inherit;color:var(--ink)}
 .fin .wide{grid-column:1/-1}
 .fin textarea{width:100%;min-height:96px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px 10px;resize:vertical}
 
-.go{position:fixed;left:0;right:0;bottom:0;z-index:10;transition:transform .25s ease;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
-.go-in{max-width:928px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.go-in .hint{flex:1;min-width:0;color:var(--muted);font-size:15px}
 .primary{background:var(--accent);color:var(--surface);border:0;border-radius:10px;padding:14px 22px;font-size:18px;font-weight:600;font-family:var(--display);letter-spacing:.02em;min-height:52px}
 .primary:disabled{opacity:.45}
 .secondary{background:var(--surface);border:1.5px solid var(--accent);color:var(--accent);border-radius:10px;padding:12px 18px;font-size:17px;font-weight:600;min-height:52px}
@@ -157,8 +154,7 @@ input,textarea{font:inherit;color:var(--ink)}
   .it .dt{grid-column:1/-1}
   .it .tog{grid-column:2;grid-row:1}
 }
-.go.away{transform:translateY(110%)}
-@media (prefers-reduced-motion:reduce){.prog-fill,.go{transition:none}}
+@media (prefers-reduced-motion:reduce){.prog-fill{transition:none}}
 </style>
 
 <div class="wrap">
@@ -184,12 +180,7 @@ input,textarea{font:inherit;color:var(--ink)}
   <section id="vSum" class="sum" hidden></section>
 </div>
 
-<div class="go" id="goBar" hidden>
-  <div class="go-in">
-    <div class="hint" id="goHint">Alle Positionen mit ✓ oder ✗ abhaken.</div>
-    <button class="primary" id="btnSum" type="button">Prüfen &amp; absenden</button>
-  </div>
-</div>
+
 
 <script>
 const APP = __DATA__;
@@ -315,7 +306,7 @@ function dueBanner(){
 
 /* ---------- start ---------- */
 function showStart(){
-  $("#bar").hidden = true; $("#vCheck").hidden = true; $("#vSum").hidden = true; $("#goBar").hidden = true;
+  $("#bar").hidden = true; $("#vCheck").hidden = true; $("#vSum").hidden = true;
   $("#vStart").hidden = false;
   $("#vGrid").innerHTML = APP.veh.map((v,i) => `<button class="vbtn" type="button" data-i="${i}"><b>${esc(v.id)}</b><span class="num">${esc(v.kz)}</span></button>`).join("");
 }
@@ -397,7 +388,7 @@ function secCount(si){
 
 function renderCheck(){
   $("#vStart").hidden = true; $("#vSum").hidden = true;
-  $("#bar").hidden = false; $("#vCheck").hidden = false; $("#goBar").hidden = false;
+  $("#bar").hidden = false; $("#vCheck").hidden = false;
   $("#vName").textContent = veh.id;
   $("#vSub").textContent = `${veh.kz} · ${new Date().toLocaleDateString("de-DE")}`;
   const secs = APP.secs.map((s, si) => ({si, t:s.t, a:s.a, items: ITEMS.filter(i => i.sec === si)}));
@@ -431,12 +422,9 @@ function renderCheck(){
 
 function updateProgress(){
   const done = ITEMS.filter(isDone).length, tot = ITEMS.length;
-  const fin = S.km && S.kz && S.sig;
   $("#pTxt").textContent = `${done} von ${tot} geprüft`;
   $("#pPct").textContent = `${Math.round(done/tot*100)} %`;
   $("#pFill").style.width = `${done/tot*100}%`;
-  const open = tot - done;
-  $("#goHint").textContent = open ? `Noch ${open} Position${open===1?"":"en"} offen.` : (fin ? "Alles geprüft – bereit zum Absenden." : "Kilometerstand, Kürzel und Unterschrift fehlen noch.");
 }
 
 function refreshRow(key){
@@ -530,20 +518,6 @@ $("#vCheck").addEventListener("input", e => {
   save(); updateProgress();
 });
 
-/* untere Leiste: beim Runterscrollen ausblenden, beim Hochscrollen und am Listenende zeigen */
-(function(){
-  let lastY = window.scrollY, ticking = false;
-  window.addEventListener("scroll", () => {
-    if(ticking) return; ticking = true;
-    requestAnimationFrame(() => {
-      const y = window.scrollY, bar = $("#goBar");
-      const atEnd = window.innerHeight + y >= document.documentElement.scrollHeight - 120;
-      if(atEnd || y < 80 || y < lastY - 4) bar.classList.remove("away");
-      else if(y > lastY + 4) bar.classList.add("away");
-      lastY = y; ticking = false;
-    });
-  }, {passive:true});
-})();
 
 $("#btnVeh").addEventListener("click", () => { showStart(); });
 
@@ -582,7 +556,7 @@ function showSummary(){
   const c = collect();
   const ready = !c.open.length && S.km && S.kz && S.sig;
   const li = (arr, f) => arr.length ? `<ul class="list">${arr.map(f).join("")}</ul>` : `<p style="margin:0;color:var(--muted)">Keine.</p>`;
-  $("#vCheck").hidden = true; $("#goBar").hidden = true; $("#vSum").hidden = false;
+  $("#vCheck").hidden = true; $("#vSum").hidden = false;
   $("#vSum").innerHTML = `
     <h1 style="font-size:30px">Zusammenfassung ${esc(veh.id)}</h1>
     ${c.open.length ? `<div class="msg bad">Noch ${c.open.length} Position${c.open.length===1?"":"en"} offen. Bitte zuerst vollständig prüfen.</div>` : ""}
@@ -607,7 +581,6 @@ function showSummary(){
     ${UPLOAD_TOKEN ? "" : `<p class="foot">Beim Absenden öffnet sich das Teilen-Menü: <b>luckycloud</b> wählen und im Ordner <b>Bestandscheck Eingang</b> sichern.</p>`}`;
   window.scrollTo(0,0);
 }
-$("#btnSum").addEventListener("click", showSummary);
 $("#vCheck").addEventListener("click", e => { if(e.target.id === "btnSum2") showSummary(); });
 $("#vSum").addEventListener("click", async e => {
   if(e.target.id === "btnBack"){ renderCheck(); return; }
