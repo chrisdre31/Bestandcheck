@@ -252,7 +252,7 @@ function buildItems(){
   return out;
 }
 const norm = s => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
-const snNorm = s => String(s || "").toUpperCase().replace(/[\s\-_./]/g, "");
+const snNorm = s => String(s || "").toUpperCase().replace(/[\s\-_./]/g, "").replace(/^0+(?=\d)/, "");   // führende Nullen zählen nicht
 // Pflichtfelder: Datum/S-Nr. muss eingetragen werden, wenn das Bestandsverzeichnis dafür einen Wert führt
 const listText = v => (v && v !== "-") ? String(v).trim() : "";
 const needF = f => (f.ty === "month" && !!toMonth(f.list)) || (f.ty === "text" && !!listText(f.list)) || f.ty === "number" || f.ty === "check";
