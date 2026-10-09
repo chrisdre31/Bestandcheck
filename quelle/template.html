@@ -187,7 +187,7 @@ const APP = __DATA__;
 const STAND = "März 2026";
 const DATA_VER = "2026-10-09a";   // neue Version: Entwürfe mit vorausgefüllten Daten verwerfen
 const SOON_DAYS = 30;
-const CHECK_INTERVAL = 14; // Tage zwischen zwei Checks
+const PRUEF_ANKER = new Date(2026, 9, 5);   // Montag einer Prüfwoche; danach alle 14 Tage Mo–Fr fällig
 const O2_MIN_BAR = 50;   // Meldung, wenn Füllstand darunter liegt
 const lowO2 = v => v !== "" && v != null && !isNaN(parseFloat(v)) && parseFloat(String(v).replace(",", ".")) < O2_MIN_BAR;
 const LS_VEH = "ktn-bc-vehicle", LS_DRAFT = "ktn-bc-draft-", LS_KZ = "ktn-bc-kuerzel", LS_LAST = "ktn-bc-last-";
@@ -287,17 +287,25 @@ function isDone(it){
 
 /* ---------- Fälligkeit ---------- */
 function dueInfo(){
-  // letzter Check: auf diesem iPad abgeschickt oder laut Bestandsverzeichnis (der neuere zählt)
+  // Prüfwochen: alle 14 Tage Mo–Fr (Anker Mo 05.10.2026 → 19.10., 02.11., …).
+  // Ein Check irgendwann in der Prüfwoche zählt; die nächste Prüfwoche beginnt immer am Montag 14 Tage später.
   const cands = [ls.get(LS_LAST + veh.id), veh.lc].filter(Boolean).map(x => new Date(x)).filter(d => !isNaN(d));
   const last = cands.length ? new Date(Math.max(...cands)) : null;
-  if(!last || isNaN(last)) return {cls:"warn", ic:"!", h:"Bestandscheck fällig", t:"Auf diesem iPad wurde noch kein digitaler Check abgeschickt. Bitte jetzt durchführen."};
   const day = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const days = Math.round((day(new Date()) - day(last)) / 86400000);
-  const next = new Date(day(last)); next.setDate(next.getDate() + CHECK_INTERVAL);
-  const ld = last.toLocaleDateString("de-DE"), nd = next.toLocaleDateString("de-DE");
-  if(days > CHECK_INTERVAL) return {cls:"urgent", ic:"!!", h:`DRINGEND: Bestandscheck seit ${days - CHECK_INTERVAL} Tag${days - CHECK_INTERVAL === 1 ? "" : "en"} überfällig`, t:`Letzter Check am ${ld} (vor ${days} Tagen). Bitte sofort durchführen.`};
-  if(days === CHECK_INTERVAL) return {cls:"warn", ic:"!", h:"Bestandscheck heute fällig", t:`Letzter Check am ${ld}. Bitte heute durchführen.`};
-  return {cls:"info", ic:"✓", h:`Nächster Check fällig am ${nd}`, t:`Letzter Check am ${ld} (vor ${days} Tag${days === 1 ? "" : "en"}).`};
+  const plus = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const diff = (a, b) => Math.round((day(a) - day(b)) / 86400000);
+  const today = day(new Date());
+  const zs = plus(PRUEF_ANKER, 14 * Math.floor(diff(today, PRUEF_ANKER) / 14));   // Montag der aktuellen Prüfwoche
+  const zt = diff(today, zs), fr = plus(zs, 4);
+  const f = d => d.toLocaleDateString("de-DE", {day:"2-digit", month:"2-digit"});
+  const lt = last ? `Letzter Check am ${last.toLocaleDateString("de-DE")}.` : "Auf diesem iPad wurde noch kein digitaler Check abgeschickt.";
+  if(last && day(last) >= zs){
+    const n = plus(zs, 14);
+    return {cls:"info", ic:"✓", h:`Nächster Bestandscheck: Woche ab Mo ${f(n)} (bis Fr ${f(plus(n, 4))})`, t:`${lt} Für diese Prüfwoche erledigt.`};
+  }
+  if(zt <= 3) return {cls:"warn", ic:"!", h:`Bestandscheck diese Woche fällig – bis Freitag, ${f(fr)}`, t:lt};
+  if(zt === 4) return {cls:"warn", ic:"!", h:"Bestandscheck heute fällig – letzter Tag der Prüfwoche", t:lt};
+  return {cls:"urgent", ic:"!!", h:`DRINGEND: Bestandscheck überfällig`, t:`Die Prüfwoche ging bis Freitag, ${f(fr)} – ${lt} Bitte sofort durchführen.`};
 }
 function dueBanner(){
   const d = dueInfo();
