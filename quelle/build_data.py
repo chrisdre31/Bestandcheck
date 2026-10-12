@@ -68,7 +68,7 @@ C=[
   ("Tragetuch","1",["Tragetuch"]),
   ("Rollboard","1",["Rollboard"]),
   ("Krankentragestuhl","",{"dev":[("sn","S-Nr.","text",["Krankentragestuhl"],"sn"),("date","TÜV bis","month",["Krankentragestuhl"],"mhd")]}),
-  ("Defibrillator","",{"dev":[("sn","S-Nr.","text",["Defibrillator"],"sn"),("date","TÜV/STK bis","month",["Defibrillator"],"mhd"),("date","Ablaufdatum Akku","month",["Defibrillator Akku"],"mhd"),("date","Ablaufdatum Pads","month",["Defibrillator Pads"],"mhd")]}),
+  ("Defibrillator","",{"dev":[("sn","S-Nr.","text",["Defibrillator"],"sn"),("date","TÜV/STK bis","month",["Defibrillator"],"mhd"),("date","Ablaufdatum Akku","month",["Defibrillator Akku"],"mhd",True),("date","Ablaufdatum Pads","month",["Defibrillator Pads"],"mhd",True)]}),
   ("Einmalrasierer","2",["Einmalrasierer"]),
   ("Feuerlöscher","",{"dev":[("date","TÜV bis","month",["Feuerlöscher"],"mhd"),("sn","S-Nr.","text",["Feuerlöscher"],"sn")]}),
   ("Absaugpumpe ACCUVAC Rescue","",{"dev":[("check","Funktionstest","check",["Absaugpumpe"],None)]}),
@@ -103,7 +103,7 @@ for title,abl,items in C:
         label,soll,spec=it[0],it[1],it[2]
         ablauf = abl or (len(it)>3 and it[3])
         if isinstance(spec,dict):
-            out.append({"t":label,"s":soll,"dev":[{"k":f[0],"l":f[1],"ty":f[2],"xl":f[3],"col":f[4]} for f in spec["dev"]]})
+            out.append({"t":label,"s":soll,"dev":[dict({"k":f[0],"l":f[1],"ty":f[2],"xl":f[3],"col":f[4]},**({"p":True} if len(f)>5 and f[5] else {})) for f in spec["dev"]]})   # p = immer Pflicht (Defi-Akku/-Pads)
             for f in spec["dev"]:
                 for n in (f[3] or []): used_names.add(norm(n))
         else:
