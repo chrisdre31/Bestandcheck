@@ -1,6 +1,6 @@
 {
- "name": "KTW Bestandscheck",
- "short_name": "Bestandscheck",
+ "name": "KTW Fahrzeugpflege",
+ "short_name": "Fahrzeugpflege",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",
