@@ -1,6 +1,6 @@
-<title>KTW Bestandscheck</title>
+<title>KTW Fahrzeugpflege</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Bestandscheck">
+<meta name="apple-mobile-web-app-title" content="Fahrzeugpflege">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
@@ -155,6 +155,27 @@ input,textarea{font:inherit;color:var(--ink)}
   .it .tog{grid-column:2;grid-row:1}
 }
 @media (prefers-reduced-motion:reduce){.prog-fill{transition:none}}
+/* Übersicht (Bestandscheck + Wochencheck) */
+.hub-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hub-h h1{font-size:34px}
+.hub-h .kz{color:var(--muted);font-size:16px}
+.hubcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
+.hubcard h2{font-family:var(--display);font-size:26px;font-weight:600;margin:0}
+.hubcard p{margin:0;color:var(--muted)}
+.hubcard .due{margin-top:0}
+.hubcard .primary{justify-self:start}
+/* Wochencheck */
+.wk-row{display:grid;grid-template-columns:minmax(0,1fr) min(380px,58%);gap:10px 16px;align-items:center;padding:14px;border-top:1px solid var(--line)}
+.wk-row:first-child{border-top:0}
+.wk-row .t{font-size:19px;font-weight:600}
+.wk-row small{display:block;color:var(--muted);font-size:14px;margin-top:2px}
+.wk-row .note{grid-column:1/-1}
+.wk-row .note input{width:100%;height:46px;border:1px solid var(--bad);border-radius:8px;background:var(--bg);padding:0 10px;font:inherit}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg button{min-height:54px;min-width:0;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);font:inherit;font-weight:600;font-size:16px;color:var(--ink);padding:0 12px}
+.seg button.on-ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.seg button.on-x{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+@media (max-width:640px){.wk-row{grid-template-columns:1fr}}
 </style>
 
 <div class="wrap">
@@ -165,16 +186,18 @@ input,textarea{font:inherit;color:var(--ink)}
         <div class="prog-txt"><span id="pTxt" class="num">0 von 0 geprüft</span><span id="pPct" class="num">0 %</span></div>
         <div class="prog-track"><div class="prog-fill" id="pFill"></div></div>
       </div>
-      <button class="ghost" id="btnVeh" type="button">Fahrzeug ändern</button>
+      <button class="ghost" id="btnVeh" type="button">Zur Übersicht</button>
     </div>
   </div>
 
   <section id="vStart" class="start" hidden>
-    <h1 style="font-size:34px">KTW Bestandscheck</h1>
+    <h1 style="font-size:34px">KTW Fahrzeugpflege</h1>
     <p>Dieses iPad ist einem Fahrzeug fest zugeordnet. Wähle das Fahrzeug einmalig aus – die App merkt es sich für die nächsten Checks.</p>
     <div class="vgrid" id="vGrid"></div>
   </section>
 
+  <section id="vHub" class="start" hidden></section>
+  <main id="vWeek" hidden></main>
   <main id="vCheck" hidden></main>
 
   <section id="vSum" class="sum" hidden></section>
@@ -314,7 +337,7 @@ function dueBanner(){
 
 /* ---------- start ---------- */
 function showStart(){
-  $("#bar").hidden = true; $("#vCheck").hidden = true; $("#vSum").hidden = true;
+  $("#bar").hidden = true; $("#vCheck").hidden = true; $("#vSum").hidden = true; $("#vHub").hidden = true; $("#vWeek").hidden = true;
   $("#vStart").hidden = false;
   $("#vGrid").innerHTML = APP.veh.map((v,i) => `<button class="vbtn" type="button" data-i="${i}"><b>${esc(v.id)}</b><span class="num">${esc(v.kz)}</span></button>`).join("");
 }
@@ -322,7 +345,7 @@ $("#vGrid").addEventListener("click", e => {
   const b = e.target.closest(".vbtn"); if(!b) return;
   const v = APP.veh[+b.dataset.i];
   ls.set(LS_VEH, v.id);
-  openVehicle(v);
+  showHub(v);
 });
 
 function openVehicle(v){
@@ -395,8 +418,9 @@ function secCount(si){
 }
 
 function renderCheck(){
-  $("#vStart").hidden = true; $("#vSum").hidden = true;
+  $("#vStart").hidden = true; $("#vSum").hidden = true; $("#vHub").hidden = true; $("#vWeek").hidden = true;
   $("#bar").hidden = false; $("#vCheck").hidden = false; $("#btnVeh").hidden = false;
+  document.querySelector(".prog").hidden = false;
   $("#vName").textContent = veh.id;
   $("#vSub").textContent = `${veh.kz} · ${new Date().toLocaleDateString("de-DE")}`;
   const secs = APP.secs.map((s, si) => ({si, t:s.t, a:s.a, items: ITEMS.filter(i => i.sec === si)}));
@@ -527,7 +551,7 @@ $("#vCheck").addEventListener("input", e => {
 });
 
 
-$("#btnVeh").addEventListener("click", () => { showStart(); });
+$("#btnVeh").addEventListener("click", () => { showHub(veh); });
 
 /* ---------- summary ---------- */
 function collect(){
@@ -595,6 +619,7 @@ $("#vSum").addEventListener("click", async e => {
   const j = e.target.closest("[data-jump]");
   if(j && S){ renderCheck(); const el = document.getElementById("row-" + j.dataset.jump); if(el){ el.classList.add("open-hl"); el.scrollIntoView({block:"center"}); } return; }
   if(e.target.id === "btnSend"){ await send(); return; }
+  if(e.target.id === "btnHub"){ showHub(veh); window.scrollTo(0,0); return; }
   if(e.target.id === "btnNew"){ ls.del(LS_DRAFT + veh.id); S = newDraft(); save(); renderCheck(); window.scrollTo(0,0); }
 });
 
@@ -695,7 +720,7 @@ function showDone(text){
     <h1 style="font-size:30px">Bestandscheck abgeschickt</h1>
     <div class="msg ok">${text}</div>
     <p style="margin:0;color:var(--muted)">Der Check ist abgeschlossen und kann nicht mehr geändert werden. Für den nächsten Bestandscheck eine neue Checkliste beginnen.</p>
-    <div class="row"><button class="primary" type="button" id="btnNew">Neue Checkliste beginnen</button></div>`;
+    <div class="row"><button class="primary" type="button" id="btnHub">Zur Übersicht</button><button class="secondary" type="button" id="btnNew">Neue Checkliste beginnen</button></div>`;
   window.scrollTo(0,0);
 }
 
@@ -758,11 +783,172 @@ $("#vSum").addEventListener("click", async e => {
   catch(err){ if((err && err.name) !== "AbortError") box.insertAdjacentHTML("beforeend", `<div class="msg bad" style="margin-top:8px">Teilen nicht möglich (${esc(err.name || "Fehler")}).</div>`); }
 });
 
+/* ---------- Übersicht ---------- */
+const LS_WDRAFT = "ktn-wc-draft-", LS_WLAST = "ktn-wc-last-";
+const WK_PUNKTE = [
+  {k:"des", t:"Regeldesinfektion", sub:"Fahrzeug innen nach Hygieneplan desinfiziert", ok:"Durchgeführt", x:"Nicht möglich", ph:"Warum nicht? (z. B. Desinfektionsmittel fehlt)"},
+  {k:"oel", t:"Ölstand", sub:"Am Messstab zwischen Min und Max", ok:"In Ordnung", x:"Nicht in Ordnung", ph:"Was ist los? (z. B. unter Min, Öl nachgefüllt)"},
+  {k:"rd",  t:"Reifendruck", sub:"Alle vier Reifen geprüft", ok:"In Ordnung", x:"Nicht in Ordnung", ph:"Welcher Reifen, was ist los?"}
+];
+function wkMonday(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+function weekDue(){
+  const cands = [ls.get(LS_WLAST + veh.id), veh.lw].filter(Boolean).map(x => new Date(x)).filter(d => !isNaN(d));
+  const last = cands.length ? new Date(Math.max(...cands)) : null;
+  const now = new Date(), mo = wkMonday(now), prev = new Date(mo); prev.setDate(prev.getDate() - 7);
+  const lt = last ? `Letzter Wochencheck am ${last.toLocaleDateString("de-DE")}.` : "Noch kein digitaler Wochencheck für dieses Fahrzeug.";
+  if(last && last >= mo) return {cls:"info", ic:"✓", h:"Wochencheck für diese Woche erledigt", t:`${lt} Nächster ab Montag.`};
+  if(!last || last < prev) return {cls:"urgent", ic:"!!", h:"DRINGEND: Wochencheck überfällig", t:`${lt} Bitte heute durchführen.`};
+  const so = new Date(mo); so.setDate(so.getDate() + 6);
+  return {cls:"warn", ic:"!", h:`Wochencheck diese Woche fällig – bis Sonntag, ${so.toLocaleDateString("de-DE", {day:"2-digit", month:"2-digit"})}`, t:lt};
+}
+function banner(d){ return `<div class="due ${d.cls}" role="${d.cls === "info" ? "status" : "alert"}"><span class="ic" aria-hidden="true">${d.ic}</span><div><b>${esc(d.h)}</b><span>${esc(d.t)}</span></div></div>`; }
+function showHub(v){
+  veh = v;
+  ["#bar","#vCheck","#vSum","#vStart","#vWeek"].forEach(id => $(id).hidden = true);
+  $("#vHub").hidden = false;
+  $("#vHub").innerHTML = `
+    <div class="hub-h"><div><h1>${esc(v.id)}</h1><span class="kz num">${esc(v.kz)}</span></div><button class="ghost" type="button" data-act="veh">Fahrzeug ändern</button></div>
+    ${outboxNote()}
+    <div class="hubcard"><h2>Wochencheck</h2><p>Einmal pro Woche: Regeldesinfektion, Ölstand und Reifendruck. Dauert etwa eine Minute.</p>${banner(weekDue())}
+      <button class="primary" type="button" data-act="wc">Wochencheck starten</button></div>
+    <div class="hubcard"><h2>Bestandscheck</h2><p>Alle zwei Wochen: Material, Ablaufdaten und Geräte vollständig prüfen.</p>${dueBanner()}
+      <button class="primary" type="button" data-act="bc">Bestandscheck öffnen</button></div>`;
+  window.scrollTo(0,0);
+}
+$("#vHub").addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if(!b) return;
+  if(b.dataset.act === "veh") showStart();
+  else if(b.dataset.act === "bc") openVehicle(veh);
+  else if(b.dataset.act === "wc") openWeek(veh);
+});
+
+/* ---------- Wochencheck ---------- */
+let W = null;
+function wSave(){ if(W) ls.set(LS_WDRAFT + veh.id, JSON.stringify(W)); }
+function openWeek(v){
+  veh = v;
+  let d = null; try { d = JSON.parse(ls.get(LS_WDRAFT + v.id) || "null"); } catch(e){}
+  W = (d && d.ktw === v.id && d.ans) ? d : {ktw:v.id, ans:{des:{st:"",note:""}, oel:{st:"",note:""}, rd:{st:"",note:""}}, kz: ls.get(LS_KZ) || "", bem:"", sig:""};
+  renderWeek();
+}
+function wReady(){
+  const miss = [];
+  WK_PUNKTE.forEach(p => { const a = W.ans[p.k]; if(!a.st) miss.push(p.t); else if(a.st === "x" && !a.note.trim()) miss.push(`Begründung bei ${p.t}`); });
+  if(!W.kz.trim()) miss.push("Kürzel"); if(!W.sig) miss.push("Unterschrift");
+  return miss;
+}
+function wRow(p){
+  const a = W.ans[p.k];
+  return `<div class="wk-row" id="wr-${p.k}"><div><span class="t">${esc(p.t)}</span><small>${esc(p.sub)}</small></div>
+    <div class="seg"><button type="button" data-wk="${p.k}" data-v="ok" class="${a.st === "ok" ? "on-ok" : ""}">✓ ${esc(p.ok)}</button><button type="button" data-wk="${p.k}" data-v="x" class="${a.st === "x" ? "on-x" : ""}">✗ ${esc(p.x)}</button></div>
+    <div class="note" ${a.st === "x" ? "" : "hidden"}><input type="text" id="wn-${p.k}" data-wn="${p.k}" value="${esc(a.note)}" placeholder="${esc(p.ph)}"></div></div>`;
+}
+function renderWeek(){
+  ["#vStart","#vSum","#vHub","#vCheck"].forEach(id => $(id).hidden = true);
+  $("#bar").hidden = false; $("#vWeek").hidden = false; $("#btnVeh").hidden = false;
+  document.querySelector(".prog").hidden = true;
+  $("#vName").textContent = veh.id; $("#vSub").textContent = `Wochencheck · ${new Date().toLocaleDateString("de-DE")}`;
+  const miss = wReady();
+  $("#vWeek").innerHTML = `${banner(weekDue())}
+    <section class="sec"><div class="sec-h"><h2>Wochencheck</h2></div>${WK_PUNKTE.map(wRow).join("")}</section>
+    <section class="sec"><div class="sec-h"><h2>Abschluss</h2></div><div class="fin">
+      <div class="fld"><label for="wKz">Kürzel</label><input id="wKz" type="text" class="req" autocapitalize="characters" placeholder="Dein Kürzel" value="${esc(W.kz)}"></div>
+      <div class="fld wide"><label for="wBem">Bemerkung (optional)</label><textarea id="wBem" placeholder="Sonst etwas aufgefallen?">${esc(W.bem)}</textarea></div>
+      <div class="fld wide sigwrap"><label for="wsig">Unterschrift</label>
+        <canvas id="wsig" class="${W.sig ? "" : "empty"}" aria-label="Mit dem Finger unterschreiben"></canvas>
+        <div class="sigrow"><span>Mit dem Finger unterschreiben. Bestätigt die Angaben dieses Wochenchecks.</span><button class="ghost" type="button" id="wsigClr">Unterschrift löschen</button></div></div>
+      <div class="wide" id="wMiss">${miss.length ? `<div class="msg bad">Noch offen: ${esc(miss.join(", "))}</div>` : ""}</div>
+      <div class="wide" style="display:flex;justify-content:flex-end"><button class="primary" type="button" id="wSend" ${miss.length ? "disabled" : ""}>Wochencheck absenden</button></div>
+      <div class="wide" id="wSendMsg"></div>
+    </div></section>`;
+  initWSig();
+}
+function wRefresh(){
+  const miss = wReady();
+  $("#wMiss").innerHTML = miss.length ? `<div class="msg bad">Noch offen: ${esc(miss.join(", "))}</div>` : "";
+  $("#wSend").disabled = !!miss.length;
+}
+function initWSig(){
+  const cv = document.getElementById("wsig"); if(!cv) return;
+  const dpr = Math.max(1, window.devicePixelRatio || 1), w = cv.clientWidth || 600, hgt = cv.clientHeight || 170;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 2.4; ctx.strokeStyle = "#0d1b2a";
+  if(W.sig){ const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, w, hgt); im.src = W.sig; }
+  let drawing = false, last = null, dirty = false;
+  const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener("pointerdown", e => { drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.arc(last[0], last[1], 1.1, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill(); dirty = true; e.preventDefault(); });
+  cv.addEventListener("pointermove", e => { if(!drawing) return; const p = pos(e); ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(p[0], p[1]); ctx.stroke(); last = p; dirty = true; e.preventDefault(); });
+  const end = () => {
+    if(!drawing) return; drawing = false; if(!dirty) return;
+    const sc = Math.min(1, 600 / cv.width), out = document.createElement("canvas");
+    out.width = Math.round(cv.width * sc); out.height = Math.round(cv.height * sc);
+    const o = out.getContext("2d"); o.fillStyle = "#fff"; o.fillRect(0, 0, out.width, out.height); o.drawImage(cv, 0, 0, out.width, out.height);
+    W.sig = out.toDataURL("image/png"); cv.classList.remove("empty"); wSave(); wRefresh();
+  };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end); cv.addEventListener("pointerleave", end);
+}
+$("#vWeek").addEventListener("click", async e => {
+  if(e.target.id === "wsigClr"){ W.sig = ""; wSave(); const cv = document.getElementById("wsig"); if(cv){ cv.getContext("2d").clearRect(0, 0, cv.width, cv.height); cv.classList.add("empty"); } wRefresh(); return; }
+  if(e.target.id === "wSend"){ await sendWeek(); return; }
+  const b = e.target.closest("[data-wk]"); if(!b) return;
+  const a = W.ans[b.dataset.wk]; a.st = a.st === b.dataset.v ? "" : b.dataset.v;
+  const p = WK_PUNKTE.find(x => x.k === b.dataset.wk);
+  document.getElementById("wr-" + p.k).outerHTML = wRow(p);
+  wSave(); wRefresh();
+  if(a.st === "x"){ const n = document.getElementById("wn-" + p.k); if(n) n.focus(); }
+});
+$("#vWeek").addEventListener("input", e => {
+  const t = e.target;
+  if(t.id === "wKz"){ W.kz = t.value.toUpperCase(); ls.set(LS_KZ, W.kz); }
+  else if(t.id === "wBem") W.bem = t.value;
+  else if(t.dataset.wn) W.ans[t.dataset.wn].note = t.value;
+  wSave(); wRefresh();
+});
+function csvWeek(){
+  const now = new Date();
+  const d = now.toLocaleDateString("de-DE"), t = now.toLocaleTimeString("de-DE", {hour:"2-digit", minute:"2-digit"});
+  const q = v => { v = String(v ?? ""); return /[;"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
+  const head = ["Fahrzeug","Kennzeichen","Datum","Uhrzeit","Kürzel","Art","Punkt","Ergebnis","Bemerkung"];
+  const base = [veh.id, veh.kz, d, t, W.kz, "Wochencheck"];
+  const rows = WK_PUNKTE.map(p => { const a = W.ans[p.k]; return [...base, p.t, a.st === "ok" ? "in Ordnung" : "nicht in Ordnung", a.st === "x" ? a.note : ""]; });
+  rows.push([...base, "Bemerkung", "", W.bem]);
+  rows.push([...base, "Unterschrift", "", W.sig || ""]);
+  const body = [head, ...rows].map(r => r.map(q).join(";")).join("\r\n");
+  const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
+  return {name:`Wochencheck_${veh.id.replace(" ","")}_${stamp}.csv`, text:"﻿" + body};
+}
+function weekDone(text){
+  ls.set(LS_WLAST + veh.id, new Date().toISOString()); ls.del(LS_WDRAFT + veh.id); W = null;
+  $("#vWeek").hidden = true; $("#vWeek").innerHTML = ""; $("#btnVeh").hidden = true;
+  $("#vSum").hidden = false;
+  $("#vSum").innerHTML = `<h1 style="font-size:30px">Wochencheck abgeschickt</h1><div class="msg ok">${text}</div>
+    <div class="row"><button class="primary" type="button" id="btnHub">Zur Übersicht</button></div>`;
+  window.scrollTo(0,0);
+}
+async function sendWeek(){
+  const box = $("#wSendMsg"), btn = $("#wSend"), f = csvWeek();
+  btn.disabled = true;
+  try {
+    if(UPLOAD_TOKEN){
+      if(!navigator.onLine){ const o = outbox.get(); o.push({name:f.name, text:f.text}); outbox.set(o); weekDone("Kein Internet – der Wochencheck ist gespeichert und wird automatisch übertragen, sobald das iPad wieder online ist."); return; }
+      box.innerHTML = `<div class="msg info">Wird an luckycloud übertragen …</div>`;
+      try { await uploadDirect(f.name, f.text); weekDone("✓ Wochencheck übertragen. Vielen Dank!"); return; }
+      catch(err){ const o = outbox.get(); o.push({name:f.name, text:f.text}); outbox.set(o); weekDone(`Die Übertragung hat gerade nicht geklappt (${esc(err.message || "Fehler")}). Der Wochencheck ist gespeichert und wird automatisch erneut gesendet.`); return; }
+    }
+    const how = await shareFile(f);
+    weekDone(`${esc(f.name)} wurde ${how}. Bitte sicherstellen, dass sie in luckycloud im Ordner „Bestandscheck Eingang“ gelandet ist.`);
+  } catch(err){
+    box.innerHTML = `<div class="msg bad">Die Datei konnte nicht gesendet werden (${esc((err && (err.code || err.name)) || "Fehler")}). Bitte erneut versuchen.</div>`;
+    btn.disabled = false;
+  }
+}
+
 /* ---------- boot ---------- */
 (function boot(){
   const id = ls.get(LS_VEH);
   const v = APP.veh.find(x => x.id === id);
-  if(v) openVehicle(v); else showStart();
+  if(v) showHub(v); else showStart();
   flushOutbox();
 })();
 </script>

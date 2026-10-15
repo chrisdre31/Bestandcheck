@@ -28,7 +28,7 @@ pin_css = '''<style>
 #pinErr{color:var(--bad);min-height:1.4em;font-weight:500}
 </style>'''
 pin_html = '''<div id="pinGate" hidden><div class="card">
-  <h1>KTW Bestandscheck</h1><p>Bitte PIN eingeben</p>
+  <h1>KTW Fahrzeugpflege</h1><p>Bitte PIN eingeben</p>
   <div id="pinDots"><i></i><i></i><i></i><i></i></div>
   <div id="pinErr" role="alert"></div>
   <div id="pinPad">
@@ -44,7 +44,7 @@ async function sha(s){ const b = await crypto.subtle.digest("SHA-256", new TextE
 function startApp(){
   const id = ls.get(LS_VEH);
   const v = APP.veh.find(x => x.id === id);
-  if(v) openVehicle(v); else showStart();
+  if(v) showHub(v); else showStart();
 }
 (function gate(){
   if(ls.get(LS_PIN) === PIN_HASH){ startApp(); flushOutbox(); return; }
@@ -68,7 +68,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch
 
 boot_old = t[t.index("/* ---------- boot ---------- */"):t.index("</script>", t.index("/* ---------- boot ---------- */"))]
 site = t.replace(boot_old, pin_js).replace("__DATA__", data)
-site = site.replace('<meta name="apple-mobile-web-app-title" content="Bestandscheck">', '<meta name="apple-mobile-web-app-title" content="Bestandscheck">\n' + head_extra, 1)
+site = site.replace('<meta name="apple-mobile-web-app-title" content="Fahrzeugpflege">', '<meta name="apple-mobile-web-app-title" content="Fahrzeugpflege">\n' + head_extra, 1)
 site = site.replace("<style>", '<script>window.KTN_UPLOAD_TOKEN = "491dbb552b424a77a62b";</script>\n' + pin_css + "\n<style>", 1)
 site = site.replace('<div class="wrap">', pin_html + '\n<div class="wrap">', 1)
 reset = "<style>*,*::before,*::after{box-sizing:border-box}html{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>"
@@ -79,7 +79,7 @@ doc = ('<!doctype html><html lang="de"><head><meta charset="utf-8">'
 os.makedirs(OUT, exist_ok=True)
 open(os.path.join(OUT, "index.html"), "w", encoding="utf-8").write(doc)
 
-json.dump({"name": "KTW Bestandscheck", "short_name": "Bestandscheck", "start_url": "./", "scope": "./",
+json.dump({"name": "KTW Fahrzeugpflege", "short_name": "Fahrzeugpflege", "start_url": "./", "scope": "./",
            "display": "standalone", "background_color": "#eef1f4", "theme_color": "#2f5275", "lang": "de",
            "icons": [{"src": "icon-180.png", "sizes": "180x180", "type": "image/png"},
                      {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]},
