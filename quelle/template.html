@@ -170,6 +170,8 @@ input,textarea{font:inherit;color:var(--ink)}
 .wk-row .t{font-size:19px;font-weight:600}
 .wk-row small{display:block;color:var(--muted);font-size:14px;margin-top:2px}
 .wk-row .note{grid-column:1/-1}
+.wk-row small.wk-done{color:var(--ok);font-weight:600}
+.wk-hint{margin:0;padding:10px 14px 0;color:var(--muted);font-size:14px}
 .wk-row .note input{width:100%;height:46px;border:1px solid var(--bad);border-radius:8px;background:var(--bg);padding:0 10px;font:inherit}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .seg button{min-height:54px;min-width:0;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);font:inherit;font-weight:600;font-size:16px;color:var(--ink);padding:0 12px}
@@ -791,15 +793,20 @@ const WK_PUNKTE = [
   {k:"rd",  t:"Reifendruck", sub:"Alle vier Reifen geprüft", ok:"In Ordnung", x:"Nicht in Ordnung", ph:"Welcher Reifen, was ist los?"}
 ];
 function wkMonday(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+/* Letzte Erledigung je Punkt (dieses iPad); ältere Einträge für den ganzen Wochencheck zählen für alle drei Punkte */
+function lastDone(k){
+  const cands = [ls.get(LS_WLAST + veh.id + "-" + k), ls.get(LS_WLAST + veh.id), veh.lw].filter(Boolean).map(x => new Date(x)).filter(d => !isNaN(d));
+  return cands.length ? new Date(Math.max(...cands)) : null;
+}
 function weekDue(){
-  const cands = [ls.get(LS_WLAST + veh.id), veh.lw].filter(Boolean).map(x => new Date(x)).filter(d => !isNaN(d));
-  const last = cands.length ? new Date(Math.max(...cands)) : null;
   const now = new Date(), mo = wkMonday(now), prev = new Date(mo); prev.setDate(prev.getDate() - 7);
-  const lt = last ? `Letzter Wochencheck am ${last.toLocaleDateString("de-DE")}.` : "Noch kein digitaler Wochencheck für dieses Fahrzeug.";
-  if(last && last >= mo) return {cls:"info", ic:"✓", h:"Wochencheck für diese Woche erledigt", t:`${lt} Nächster ab Montag.`};
-  if(!last || last < prev) return {cls:"urgent", ic:"!!", h:"DRINGEND: Wochencheck überfällig", t:`${lt} Bitte heute durchführen.`};
   const so = new Date(mo); so.setDate(so.getDate() + 6);
-  return {cls:"warn", ic:"!", h:`Wochencheck diese Woche fällig – bis Sonntag, ${so.toLocaleDateString("de-DE", {day:"2-digit", month:"2-digit"})}`, t:lt};
+  const done = [], open = [], late = [];
+  WK_PUNKTE.forEach(p => { const l = lastDone(p.k); if(l && l >= mo) done.push(p.t); else if(l && l < prev) late.push(p.t); else open.push(p.t); });
+  const dt = done.length ? `Diese Woche erledigt: ${done.join(", ")}.` : "";
+  if(!open.length && !late.length) return {cls:"info", ic:"✓", h:"Wochencheck für diese Woche komplett erledigt", t:`${dt} Nächster ab Montag.`};
+  if(late.length) return {cls:"urgent", ic:"!!", h:`DRINGEND: ${late.join(", ")} überfällig`, t:`${dt} ${open.length ? "Außerdem offen: " + open.join(", ") + ". " : ""}Bitte heute erledigen – jeder Punkt kann einzeln abgeschickt werden.`.trim()};
+  return {cls:"warn", ic:"!", h:`Diese Woche noch offen: ${open.join(", ")} – bis Sonntag, ${so.toLocaleDateString("de-DE", {day:"2-digit", month:"2-digit"})}`, t:`${dt} Jeder Punkt kann einzeln abgeschickt werden.`.trim()};
 }
 function banner(d){ return `<div class="due ${d.cls}" role="${d.cls === "info" ? "status" : "alert"}"><span class="ic" aria-hidden="true">${d.ic}</span><div><b>${esc(d.h)}</b><span>${esc(d.t)}</span></div></div>`; }
 function showHub(v){
@@ -809,7 +816,7 @@ function showHub(v){
   $("#vHub").innerHTML = `
     <div class="hub-h"><div><h1>${esc(v.id)}</h1><span class="kz num">${esc(v.kz)}</span></div><button class="ghost" type="button" data-act="veh">Fahrzeug ändern</button></div>
     ${outboxNote()}
-    <div class="hubcard"><h2>Wochencheck</h2><p>Einmal pro Woche: Regeldesinfektion, Ölstand und Reifendruck. Dauert etwa eine Minute.</p>${banner(weekDue())}
+    <div class="hubcard"><h2>Wochencheck</h2><p>Einmal pro Woche: Regeldesinfektion, Ölstand und Reifendruck. Die Punkte können zusammen oder einzeln zu verschiedenen Zeiten abgeschickt werden.</p>${banner(weekDue())}
       <button class="primary" type="button" data-act="wc">Wochencheck starten</button></div>
     <div class="hubcard"><h2>Bestandscheck</h2><p>Alle zwei Wochen: Material, Ablaufdaten und Geräte vollständig prüfen.</p>${dueBanner()}
       <button class="primary" type="button" data-act="bc">Bestandscheck öffnen</button></div>`;
@@ -833,13 +840,15 @@ function openWeek(v){
 }
 function wReady(){
   const miss = [];
-  WK_PUNKTE.forEach(p => { const a = W.ans[p.k]; if(!a.st) miss.push(p.t); else if(a.st === "x" && !a.note.trim()) miss.push(`Begründung bei ${p.t}`); });
+  if(!WK_PUNKTE.some(p => W.ans[p.k].st)) miss.push("mindestens einen Punkt auswählen");
+  WK_PUNKTE.forEach(p => { const a = W.ans[p.k]; if(a.st === "x" && !a.note.trim()) miss.push(`Begründung bei ${p.t}`); });
   if(!W.kz.trim()) miss.push("Kürzel"); if(!W.sig) miss.push("Unterschrift");
   return miss;
 }
 function wRow(p){
   const a = W.ans[p.k];
-  return `<div class="wk-row" id="wr-${p.k}"><div><span class="t">${esc(p.t)}</span><small>${esc(p.sub)}</small></div>
+  const l = lastDone(p.k), dn = l && l >= wkMonday(new Date());
+  return `<div class="wk-row" id="wr-${p.k}"><div><span class="t">${esc(p.t)}</span><small>${esc(p.sub)}</small>${dn ? `<small class="wk-done">✓ diese Woche erledigt am ${l.toLocaleDateString("de-DE", {day:"2-digit", month:"2-digit"})}</small>` : ""}</div>
     <div class="seg"><button type="button" data-wk="${p.k}" data-v="ok" class="${a.st === "ok" ? "on-ok" : ""}">✓ ${esc(p.ok)}</button><button type="button" data-wk="${p.k}" data-v="x" class="${a.st === "x" ? "on-x" : ""}">✗ ${esc(p.x)}</button></div>
     <div class="note" ${a.st === "x" ? "" : "hidden"}><input type="text" id="wn-${p.k}" data-wn="${p.k}" value="${esc(a.note)}" placeholder="${esc(p.ph)}"></div></div>`;
 }
@@ -850,7 +859,7 @@ function renderWeek(){
   $("#vName").textContent = veh.id; $("#vSub").textContent = `Wochencheck · ${new Date().toLocaleDateString("de-DE")}`;
   const miss = wReady();
   $("#vWeek").innerHTML = `${banner(weekDue())}
-    <section class="sec"><div class="sec-h"><h2>Wochencheck</h2></div>${WK_PUNKTE.map(wRow).join("")}</section>
+    <section class="sec"><div class="sec-h"><h2>Wochencheck</h2></div><p class="wk-hint">Nur antippen, was gerade gemacht wurde – die anderen Punkte können später einzeln abgeschickt werden.</p>${WK_PUNKTE.map(wRow).join("")}</section>
     <section class="sec"><div class="sec-h"><h2>Abschluss</h2></div><div class="fin">
       <div class="fld"><label for="wKz">Kürzel</label><input id="wKz" type="text" class="req" autocapitalize="characters" placeholder="Dein Kürzel" value="${esc(W.kz)}"></div>
       <div class="fld wide"><label for="wBem">Bemerkung (optional)</label><textarea id="wBem" placeholder="Sonst etwas aufgefallen?">${esc(W.bem)}</textarea></div>
@@ -858,13 +867,14 @@ function renderWeek(){
         <canvas id="wsig" class="${W.sig ? "" : "empty"}" aria-label="Mit dem Finger unterschreiben"></canvas>
         <div class="sigrow"><span>Mit dem Finger unterschreiben. Bestätigt die Angaben dieses Wochenchecks.</span><button class="ghost" type="button" id="wsigClr">Unterschrift löschen</button></div></div>
       <div class="wide" id="wMiss">${miss.length ? `<div class="msg bad">Noch offen: ${esc(miss.join(", "))}</div>` : ""}</div>
-      <div class="wide" style="display:flex;justify-content:flex-end"><button class="primary" type="button" id="wSend" ${miss.length ? "disabled" : ""}>Wochencheck absenden</button></div>
+      <div class="wide" style="display:flex;justify-content:flex-end"><button class="primary" type="button" id="wSend" ${miss.length ? "disabled" : ""}>${sendLabel()}</button></div>
       <div class="wide" id="wSendMsg"></div>
     </div></section>`;
   initWSig();
 }
+function sendLabel(){ const n = WK_PUNKTE.filter(p => W.ans[p.k].st).length; return n === WK_PUNKTE.length || !n ? "Wochencheck absenden" : `${n === 1 ? "1 Punkt" : n + " Punkte"} absenden`; }
 function wRefresh(){
-  const miss = wReady();
+  const miss = wReady(); $("#wSend").textContent = sendLabel();
   $("#wMiss").innerHTML = miss.length ? `<div class="msg bad">Noch offen: ${esc(miss.join(", "))}</div>` : "";
   $("#wSend").disabled = !!miss.length;
 }
@@ -911,7 +921,7 @@ function csvWeek(){
   const q = v => { v = String(v ?? ""); return /[;"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
   const head = ["Fahrzeug","Kennzeichen","Datum","Uhrzeit","Kürzel","Art","Punkt","Ergebnis","Bemerkung"];
   const base = [veh.id, veh.kz, d, t, W.kz, "Wochencheck"];
-  const rows = WK_PUNKTE.map(p => { const a = W.ans[p.k]; return [...base, p.t, a.st === "ok" ? "in Ordnung" : "nicht in Ordnung", a.st === "x" ? a.note : ""]; });
+  const rows = WK_PUNKTE.filter(p => W.ans[p.k].st).map(p => { const a = W.ans[p.k]; return [...base, p.t, a.st === "ok" ? "in Ordnung" : "nicht in Ordnung", a.st === "x" ? a.note : ""]; });
   rows.push([...base, "Bemerkung", "", W.bem]);
   rows.push([...base, "Unterschrift", "", W.sig || ""]);
   const body = [head, ...rows].map(r => r.map(q).join(";")).join("\r\n");
@@ -919,7 +929,9 @@ function csvWeek(){
   return {name:`Wochencheck_${veh.id.replace(" ","")}_${stamp}.csv`, text:"﻿" + body};
 }
 function weekDone(text){
-  ls.set(LS_WLAST + veh.id, new Date().toISOString()); ls.del(LS_WDRAFT + veh.id); W = null;
+  const jetzt = new Date().toISOString();
+  WK_PUNKTE.forEach(p => { if(W && W.ans[p.k].st) ls.set(LS_WLAST + veh.id + "-" + p.k, jetzt); });
+  ls.del(LS_WDRAFT + veh.id); W = null;
   $("#vWeek").hidden = true; $("#vWeek").innerHTML = ""; $("#btnVeh").hidden = true;
   $("#vSum").hidden = false;
   $("#vSum").innerHTML = `<h1 style="font-size:30px">Wochencheck abgeschickt</h1><div class="msg ok">${text}</div>
