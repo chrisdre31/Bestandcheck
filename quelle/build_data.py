@@ -87,7 +87,8 @@ C=[
   ("Handbesen","1",["Handbesen"]),("Ersatzbatterien AA/AAA","je 4",[]),
  ]),
  ("Fahrzeugmappe",False,[
-  ("Fahrzeugschein","1",["Fahrzeugschein (TÜV)","Fahrzeugschein"]),("Tankkarte","1",["Tankkarte"]),
+  ("Fahrzeugschein (TÜV)","1",{"dev":[("date","TÜV des Fahrzeugs bis (Plakette)","month",["Fahrzeugschein (TÜV)","Fahrzeugschein"],"mhd",True)]}),   # TÜV des KTW selbst – immer Pflicht
+  ("Tankkarte","1",["Tankkarte"]),
   ("Verletztenanhängekarten","1",[]),("Auszug Genehmigungsurkunde","1",["Auszug Genehmigungsurkunde"]),
   ("Desinfektionsbuch","1",["Desinfektionsbuch"]),("Transportscheine","20",["Transportscheine"]),
   ("Muster Transportvertrag","10",["Transportvertrag"]),("Datenschutzblätter","3",["Datenschutzblätter"]),
